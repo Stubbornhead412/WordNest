@@ -173,7 +173,7 @@ WORDNEST_PROXY=http://host.docker.internal:7897
 
 ## 三、相对上游的增强
 
-**新增功能、优化项与使用方法 👉 [FEATURES.md](FEATURES.md)**
+**新增功能、优化项与使用方法见 [FEATURES.md](FEATURES.md)。**
 
 本版本在上游「Flask 单机版」的基础上，补充的是**跑起来、用得顺、随身可用**这一层：
 
