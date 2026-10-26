@@ -10,6 +10,12 @@ from flask import current_app
 
 from utils.net import describe_error, request as net_request
 
+# 未配置密钥时给用户的提示（尽量说清楚怎么解决）
+MISSING_API_KEY_MESSAGE = (
+    '还没有配置 DeepSeek API Key：请在项目根目录的 .env 中填写 DEEPSEEK_API_KEY，'
+    '然后执行 docker compose up -d 重启容器'
+)
+
 
 class LLMService:
     """大语言模型服务类"""
@@ -267,7 +273,10 @@ class LLMService:
         """
         if not word:
             return {"error": "单词不能为空"}
-        
+
+        if not current_app.config.get('DEEPSEEK_API_KEY'):
+            return {"error": MISSING_API_KEY_MESSAGE}
+
         try:
             hint = LLMService._word_bank_hint(word)
             prompt = f"""请为英语单词 '{word}' 生成完整的学习信息。
