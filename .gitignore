@@ -58,3 +58,6 @@ backup/
 screenshot_*.png
 .edgeprofile*/
 _cdp_*.py
+
+# 临时调试脚本（以下划线开头），不要提交
+_*.py
