@@ -171,11 +171,11 @@ WORDNEST_PROXY=http://host.docker.internal:7897
 
 ---
 
-## 三、我相对上游做的改动
+## 三、相对上游的增强
 
-**完整清单（按「新增 / 修复 / 功能 / 移除 / 数据」分类，逐项注明原因和验证结果）👉 [CHANGES.md](CHANGES.md)**
+**新增功能、优化项与使用方法 👉 [FEATURES.md](FEATURES.md)**
 
-一句话概括：上游是「Flask 单机版」，我补的是**跑起来、用得顺、能上手机**这一层——
+本版本在上游「Flask 单机版」的基础上，补充的是**跑起来、用得顺、随身可用**这一层：
 
 | 分类 | 主要内容 |
 | --- | --- |
@@ -655,84 +655,3 @@ WORDNEST_PASSWORD=你的密码
 - 窄屏下左侧 AI 助教会**自动收起成左下角一个小圆钮**，点开是底部浮层，不再挡住单词卡
 - 单词和操作图标改成上下排列，长单词（`intelligent`、`discrimination`）不会压到按钮
 - 建议手机浏览器「添加到主屏幕」，用起来接近 App
-
----
-
-## 十四、发布到 GitHub（打包 / 推送）
-
-这个目录已经初始化成 git 仓库并做了一次提交：
-
-```powershell
-git log --oneline -1     # 2c28778 初始提交：…
-git status               # 干净
-```
-
-**提交内容已做过滤**（`.gitignore` 兜底 + 实测确认）：
-
-| 不会进仓库 | 原因 |
-| --- | --- |
-| `.env` | 里面有你的 DeepSeek API Key |
-| `instance/`、`*.db` | 你的 400 词词库（个人数据） |
-| `study_data/` | 学习记录 + 笔记 + 抽词轮次（个人数据） |
-| `chat_data/` | AI 对话记录 |
-| `backup/`、`*.bak` | 词库备份 |
-| `screenshot_*.png` | 我调试时的截图 |
-
-当前快照：**80 个文件 / 约 5 MB**（其中 `screenshots/` 上游图片 3.6 MB）。
-
-### 方式 A：网页上传（最省事，不需要 git 网络）
-
-在项目**上一级目录**已经准备好两份可直接上传的东西：
-
-| 文件/目录 | 用途 |
-| --- | --- |
-| `WordNest-github.zip`（3.78 MB） | 发给别人 / 存档 / 自己在本地解压后上传 |
-| `WordNest-github\`（文件夹，90+ 个文件） | **直接拖到 GitHub 网页上传**用这个 |
-
-步骤：
-
-1. 在 GitHub 新建一个空仓库（**不要**勾选 Add a README / .gitignore / license）
-2. 打开仓库 → `Add file` → `Upload files`
-3. 把 **`WordNest-github` 文件夹里的所有内容**（全选 `Ctrl+A`）拖进上传区 → `Commit changes`
-
-> ⚠️ GitHub 的网页上传**不会自动解压 zip**——直接拖 `.zip` 只会把压缩包当成一个文件提交上去。
-> 所以网页上传请用解压好的 `WordNest-github\` 文件夹（拖文件夹本身也行，会保留目录结构）。
-
-### 方式 B：命令行推送（需要能连 GitHub）
-
-本机当前**直连 GitHub 的 git 协议被重置**（`Recv failure: Connection was reset`），
-所以推送前需要开代理（Clash / v2ray 等），然后：
-
-```powershell
-cd C:\Users\Asus\Documents\deepseek-harness\default-workspace\WordNest
-
-# 1) 给 git 配代理（Clash Verge 默认混合端口 7897；Clash for Windows 常见 7890）
-git config --global http.proxy  http://127.0.0.1:7897
-git config --global https.proxy http://127.0.0.1:7897
-
-# 2) 关联你的仓库（把 <你的用户名> 换成实际用户名）
-git remote add origin https://github.com/<你的用户名>/WordNest.git
-
-# 3) 推送
-git push -u origin main
-```
-
-推送时用 **Personal Access Token** 当密码（GitHub 已不支持账号密码）：
-`Settings → Developer settings → Personal access tokens → Fine-grained tokens`，勾 `Contents: Read and write`。
-
-推完想取消代理：`git config --global --unset http.proxy` 和 `--unset https.proxy`。
-
-### 方式 C：Gitee / 其他国内平台（不需要代理）
-
-如果只是想要一个能访问的远程仓库，Gitee（码云）直连即可：新建仓库 → 拿仓库地址 →
-`git remote add origin https://gitee.com/<用户名>/wordnest.git && git push -u origin main`。
-之后想要 GitHub 镜像，可以再用网页方式导入。
-
-### 发布前的两个提醒
-
-1. **署名**：这是基于 [wink-wink-wink555/WordNest](https://github.com/wink-wink-wink555/WordNest) 的二次开发，
-   `LICENSE` 保留原作者版权（MIT 允许修改与再发布，但必须保留版权声明）。README 顶部已加说明，别删。
-2. **别把自己的数据放进去**：词库 CSV、`.env`、数据库文件都属于个人内容。
-   想让别人也能导入你的词表，可以只附一个**脱敏的示例 CSV**（比如前 20 个词）。
-
-
