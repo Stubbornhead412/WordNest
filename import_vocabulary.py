@@ -21,7 +21,7 @@ CSV 格式：带表头的 UTF-8 文件，建议列名如下（顺序无所谓，
 
 最少只需要「单词」和「释义」两列；音标/词性/类型可缺省。
 
-⚠️ 导入前建议先停容器，避免 SQLite 写入竞争：
+注意：导入前建议先停容器，避免 SQLite 写入竞争：
     docker compose stop
     python import_vocabulary.py --csv vocabulary.csv
     docker compose start

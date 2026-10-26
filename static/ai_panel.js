@@ -38,7 +38,7 @@
     ];
 
     var WELCOME = [
-        '我是四级冲刺助教 👋 会结合你的单词进度出题和答疑。',
+        '我是四级冲刺助教，会结合你的单词进度出题与答疑。',
         '',
         '可以这样问我：',
         '- 帮我翻译：随着科技的发展，人们的生活发生了巨大变化',
@@ -145,8 +145,8 @@
             var empty = document.createElement('span');
             empty.className = 'ai-words-empty';
             empty.textContent = currentTab === 'today'
-                ? '今天还没学单词，去自测页点「查看意思」吧'
-                : '还没有星标单词，点单词右侧的星星标记重点';
+                ? '今天尚未学习单词，可在自测页查看释义'
+                : '暂无星标单词，可在单词卡上标记星标';
             elWordList.appendChild(empty);
             return;
         }
@@ -321,7 +321,7 @@
         syncTimer = setTimeout(function () { refreshWords(); }, delay || 500);
     }
 
-    // 右侧每"看一次释义 / 星标"都会请求这些接口，顺手同步侧栏词表
+    // 右侧每"看一次释义 / 星标"都会请求这些接口，同时同步侧栏词表
     function bindAutoSync() {
         if (window.fetch && !window.__aiCoachFetchWrapped) {
             window.__aiCoachFetchWrapped = true;
@@ -439,7 +439,7 @@
             elSend.textContent = '发送';
             save();
             renderAll();
-            // 回答结束后顺手同步一次词表（新学的词可能已进库）
+            // 回答结束后同步一次词表（新学的词可能已进库）
             scheduleSync(300);
         }
     }

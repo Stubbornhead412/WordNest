@@ -241,7 +241,7 @@
     <header class="nt-head">
         <div>
             <h1>我的笔记</h1>
-            <p class="nt-sub">背单词时的想法、老师讲的点、易错总结都可以记在这里，AI 助教会把它们当作参考资料</p>
+            <p class="nt-sub">记录学习过程中的想法、错题与总结，AI 助教将作为参考资料</p>
         </div>
         <nav class="nt-nav">
             <a href="/" class="nt-btn">← 返回自测</a>
@@ -263,7 +263,7 @@
     <div class="nt-main">
         <section class="nt-panel">
             <div class="nt-list" id="ntList">
-                <div class="nt-empty">还没有笔记<br>点右上角「新建笔记」记下第一条吧 ✍️</div>
+                <div class="nt-empty">暂无笔记<br>点击右上角「新建笔记」开始记录</div>
             </div>
         </section>
 
@@ -275,23 +275,23 @@
 
             <div class="nt-field">
                 <label for="ntTitle">标题（可空）</label>
-                <input id="ntTitle" class="nt-input" type="text" placeholder="比如：affect / effect 我总是搞混">
+                <input id="ntTitle" class="nt-input" type="text" placeholder="例如：affect / effect 易混词对比">
             </div>
 
             <div class="nt-row2">
                 <div class="nt-field">
                     <label for="ntWord">关联单词（可空）</label>
-                    <input id="ntWord" class="nt-input" type="text" placeholder="比如：affect">
+                    <input id="ntWord" class="nt-input" type="text" placeholder="例如：affect">
                 </div>
                 <div class="nt-field">
                     <label for="ntTags">标签（可空，逗号分隔）</label>
-                    <input id="ntTags" class="nt-input" type="text" placeholder="比如：易混词,阅读">
+                    <input id="ntTags" class="nt-input" type="text" placeholder="例如：易混词, 阅读">
                 </div>
             </div>
 
             <div class="nt-field">
                 <label for="ntContent">内容 <span id="ntWords" class="nt-hint"></span></label>
-                <textarea id="ntContent" class="nt-textarea" placeholder="随手记：这个词怎么记、在哪个题里错过的、老师的原话、自己的总结……"></textarea>
+                <textarea id="ntContent" class="nt-textarea" placeholder="记录记忆方法、错题出处、老师讲解要点或个人总结"></textarea>
             </div>
 
             <div class="nt-editor-foot">
@@ -356,7 +356,7 @@
     function renderList() {
         elCount.textContent = notes.length ? ('共 ' + notes.length + ' 条') : '';
         if (!notes.length) {
-            elList.innerHTML = '<div class="nt-empty">还没有笔记<br>点上方「新建笔记」记下第一条吧 ✍️</div>';
+            elList.innerHTML = '<div class="nt-empty">暂无笔记<br>点击上方「新建笔记」开始记录</div>';
             return;
         }
         elList.innerHTML = '';

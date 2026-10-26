@@ -90,7 +90,7 @@ class CET4Coach:
                 brief = '；'.join(f'{d["label"]} {d["count"]} 词' for d in days)
                 lines.append(f'- 最近几天：{brief}')
 
-            # 顺手给几个"最近学过的词"，方便出练习时取材
+            # 附带几个"最近学过的词"，方便出练习时取材
             if days and days[0].get('words'):
                 recent = '、'.join(w['word'] for w in days[0]['words'][:10])
                 if recent:
@@ -174,7 +174,7 @@ class CET4Coach:
             msg = str(e)
             if 'DEEPSEEK_API_KEY' in msg:
                 msg = '还没有配置 DeepSeek API Key，请在项目的 .env 里填写 DEEPSEEK_API_KEY 后执行 docker compose up -d'
-            yield 'data: ' + json.dumps({'content': '⚠️ ' + msg}, ensure_ascii=False) + '\n\n'
+            yield 'data: ' + json.dumps({'content': '提示：' + msg}, ensure_ascii=False) + '\n\n'
             yield 'data: [DONE]\n\n'
         except requests.exceptions.RequestException as e:
             # 网络类问题（TLS 被拦、代理没开、超时）统一给一句人话，别把堆栈丢给用户
@@ -184,12 +184,12 @@ class CET4Coach:
                 current_app.logger.error(f'四级助教网络错误: {msg} | {e}')
             except Exception:
                 pass
-            yield 'data: ' + json.dumps({'content': '⚠️ ' + msg}, ensure_ascii=False) + '\n\n'
+            yield 'data: ' + json.dumps({'content': '提示：' + msg}, ensure_ascii=False) + '\n\n'
             yield 'data: [DONE]\n\n'
         except Exception as e:
             try:
                 current_app.logger.error(f'四级助教流式回答失败: {e}')
             except Exception:
                 pass
-            yield 'data: ' + json.dumps({'content': f'❌ 出错了：{e}'}, ensure_ascii=False) + '\n\n'
+            yield 'data: ' + json.dumps({'content': f'出错了：{e}'}, ensure_ascii=False) + '\n\n'
             yield 'data: [DONE]\n\n'

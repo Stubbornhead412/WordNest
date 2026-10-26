@@ -56,7 +56,7 @@ if (Test-Path $envFile) {
 
 if (-not $pwdSet) {
     Write-Host ""
-    Write-Host "⚠  你还没有设置访问密码（.env 里的 WORDNEST_PASSWORD）。" -ForegroundColor Yellow
+    Write-Host "[提示] 尚未设置访问密码（.env 里的 WORDNEST_PASSWORD）。" -ForegroundColor Yellow
     Write-Host "   隧道一旦开启，任何拿到这个网址的人都能打开你的词库、删除数据、消耗你的 AI 额度。" -ForegroundColor Yellow
     Write-Host "   建议先设置：在 .env 里加  WORDNEST_PASSWORD=你的密码   然后  docker compose up -d" -ForegroundColor Yellow
     Write-Host ""

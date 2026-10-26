@@ -519,15 +519,15 @@ class AIService:
                             continue
             
         except requests.exceptions.Timeout:
-            yield 'data: {"content": "⏱️ 请求超时，请稍后重试"}\n\n'
+            yield 'data: {"content": "请求超时，请稍后重试"}\n\n'
             yield 'data: [DONE]\n\n'
         except requests.exceptions.RequestException as e:
-            error_msg = f"🔌 网络请求错误: {str(e)}"
+            error_msg = f"网络请求错误: {str(e)}"
             current_app.logger.error(error_msg)
             yield f'data: {{"content": "{error_msg}"}}\n\n'
             yield 'data: [DONE]\n\n'
         except Exception as e:
-            error_msg = f"❌ 处理请求时发生错误: {str(e)}"
+            error_msg = f"处理请求时发生错误: {str(e)}"
             current_app.logger.error(error_msg)
             yield f'data: {{"content": "{error_msg}"}}\n\n'
             yield 'data: [DONE]\n\n'
