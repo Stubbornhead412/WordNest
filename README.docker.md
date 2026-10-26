@@ -1,11 +1,85 @@
 # WordNest × Docker Desktop × VSCode 部署说明
 
-本目录是 [wink-wink-wink555/WordNest](https://github.com/wink-wink-wink555/WordNest) 最新 `main` 分支的快照，
-并补好了在 **Docker Desktop + VSCode** 下运行所需的全部配置。
+本目录是 [wink-wink-wink555/WordNest](https://github.com/wink-wink-wink555/WordNest) 的二次开发版，
+补好了在 **Docker Desktop + VSCode** 下运行所需的全部配置。
 
-- 源码位置：`C:\Users\Asus\Documents\deepseek-harness\default-workspace\WordNest`
 - 镜像：`wordnest:local`　容器：`wordnest`　地址：<http://localhost:5000>
-- 数据：`instance/`（词库）、`chat_data/`（AI 对话）、`settings.json`（界面偏好），都已挂载到宿主机，**重建容器不丢数据**
+- 数据：`instance/`（词库）、`study_data/`（学习记录+笔记）、`chat_data/`（AI 对话）都挂载到宿主机，**重建容器不丢数据**
+
+---
+
+## 零、别人拿到这个项目后怎么跑（3 步）
+
+### 需要什么环境
+
+| 必需 | 说明 |
+| --- | --- |
+| **Docker Desktop**（Windows / macOS）或 Docker Engine + Compose（Linux） | 唯一硬性要求。Windows 建议开启 WSL2 后端 |
+| 浏览器 | Chrome / Edge / Safari 都行；手机浏览器也可以 |
+
+| 可选 | 什么时候需要 |
+| --- | --- |
+| **Python 3.8+** | 只有跑 `import_vocabulary.py`（导入词表 CSV）、`enrich_words.py`（AI 批量补例句）才需要；两个脚本只用标准库，不用 pip 安装 |
+| **VSCode + Dev Containers 扩展** | 想按 F5 调试、或不想装 Python 时用（容器里什么都装好了） |
+| **DeepSeek API Key** | 想用 AI（例句/记忆法/知识图谱/助教）才需要；不填也能正常背单词 |
+
+> 也就是说：**装了 Docker Desktop，解压就能跑，不需要 Python、不需要 Node、不需要数据库。**
+
+### 第 1 步：启动
+
+```powershell
+cd WordNest
+docker compose up -d --build      # 第一次会构建镜像，约 1~2 分钟
+```
+
+浏览器打开 <http://localhost:5000> —— 此时是空词表，可以手动加词、背单词、看学习记录，只是 AI 不可用。
+
+> 不用先创建 `.env`：`docker-compose.yml` 里所有配置都有默认值，没 `.env` 也能启动。
+
+### 第 2 步（可选）：填 API Key，让 AI 可用
+
+```powershell
+# 复制模板
+copy .env.example .env        # macOS/Linux: cp .env.example .env
+
+# 编辑 .env，填一行（Key 从 https://platform.deepseek.com/api_keys 申请）
+#   DEEPSEEK_API_KEY=sk-你的密钥
+
+docker compose up -d          # 让容器读到新配置（不需要 --build）
+```
+
+验证：进「添加单词」页点 **AI 一键填充**，或点左下角 AI 助教问一句。
+
+> 没填 Key 时点 AI 会提示「还没有配置 DeepSeek API Key」——这是预期行为，其它功能不受影响。
+
+### 第 3 步（可选）：导入自己的词表
+
+准备一个 CSV（UTF-8，带表头），最少要有「单词」和「释义」两列：
+
+```csv
+序号,单词/短语,音标,词性,中文释义,类型,首字母
+1,abuse,əˈbjuːs,n./v.,滥用；虐待；辱骂,单词,a
+2,academy,əˈkædəmi,n.,学院；研究院；专科院校,单词,a
+```
+
+```powershell
+docker compose stop                                    # 先停容器，避免数据库写入竞争
+python import_vocabulary.py --csv vocabulary.csv       # 导入到默认词表 words
+docker compose start
+```
+
+- 想导成**独立词表**（不动原有数据）：`--list cet4`
+- 目标词表已有词、想覆盖：加 `--replace`（会自动备份到 `backup/`）
+- 想先试试效果：仓库里带了一份 **`vocabulary.sample.csv`（20 个四级词）**，可以直接导入
+- 没有 Python？把 CSV 放到项目目录后，用容器执行：
+  `docker compose run --rm -v "%cd%:/app" --entrypoint python wordnest import_vocabulary.py --csv vocabulary.csv`
+
+导入完成后刷新网页，右上角能看到词表；想让 AI 批量补例句/记忆法：
+
+```powershell
+python enrich_words.py --limit 10 --dry-run    # 先预览 10 个
+python enrich_words.py --limit 0               # 全量补齐
+```
 
 ---
 
@@ -186,27 +260,43 @@ Docker Desktop 把 Windows 目录以 **9p/drvfs** 挂载进容器，这个文件
 
 ## 四、导入自己的单词表（CSV）
 
-`instance/words.db` 里现在是你导入的 **400 个词**（原仓库的 21 个示例词已迁到独立词表 `demo`）。
+CSV 需要的列（顺序无所谓，按表头识别；最少要有「单词」和「释义」）：
+`序号,单词/短语,音标,词性,中文释义,类型,首字母`
 
-CSV 需要的列（顺序无所谓，按表头识别）：`序号,单词/短语,音标,词性,中文释义,类型,首字母`。
-导入脚本：[import_vocabulary.py](import_vocabulary.py)
+导入脚本：[import_vocabulary.py](import_vocabulary.py)（已改成通用 CLI，路径不再写死）
 
 ```powershell
 # 1) 先停容器，避免 SQLite 写入竞争
 docker compose stop
-# 2) 导入（脚本会自动备份旧库到 backup/，并把旧词迁到 instance/demo.db）
-python import_vocabulary.py
+
+# 2) 导入（默认读项目根目录的 vocabulary.csv，导入到 words 词表）
+python import_vocabulary.py --csv vocabulary.csv
+
 # 3) 启动
 docker compose start
 ```
 
+常用参数：
+
+| 参数 | 作用 |
+| --- | --- |
+| `--csv <路径>` | 指定 CSV（默认 `vocabulary.csv`） |
+| `--list <名字>` | 导入到哪个词表（默认 `words`；填 `cet4` 就是新建一个词表，**不动原有数据**） |
+| `--replace` | 目标词表已有单词时，先备份再清空导入（不加这个参数会拒绝覆盖，防止误操作） |
+
+新手可以直接用仓库自带的 **`vocabulary.sample.csv`（20 个四级词）** 试手：
+
+```powershell
+python import_vocabulary.py --csv vocabulary.sample.csv --list demo20
+```
+
 规则说明：
 
-- **音标**没地方放（项目只有 词性/释义/例句/笔记 四个字段），脚本把它写进「笔记」字段，形如 `音标 /əˈbjuːs/`，卡片上能直接看到。
+- **音标**项目里没有独立字段，脚本会写进「笔记」字段，形如 `音标 /əˈbjuːs/`，卡片上能直接看到。
 - **例句**留空，用 AI 一键填充即可补上（见下节）。
-- 重复词会跳过，`短语`（含空格）也能导入，共 15 条。
-- 想要一份干净的备用库，`instance/demo.db` 就是原始 21 个示例词，可在界面右上角列表里切换。
-- 回滚：`backup/words.db.<时间戳>.bak` 拷回 `instance/words.db` 即可。
+- 重复词自动跳过，含空格的短语也能导入。
+- 导入前自动备份到 `backup/<词表>.db.<时间戳>.bak`，回滚拷回去即可。
+- 没有 Python 也能导：`docker compose run --rm -v "%cd%:/app" --entrypoint python wordnest import_vocabulary.py --csv vocabulary.csv`
 
 ---
 
@@ -460,8 +550,15 @@ docker compose build --build-arg APT_MIRROR=https://deb.debian.org --build-arg P
 合成速度略慢（首次约 1 秒），属正常。
 
 **7. 想更新到上游新版本**
-当前目录是快照（未附 `.git`，因为本机网络拉不了 GitHub 的 git 协议）。
-网络可用时，可把新版本源码覆盖过来，然后 `docker compose up -d --build` 重建。
+`git pull`（如果本来就是 clone 的），或把新版本源码覆盖过来再 `docker compose up -d --build`。
+
+**8. 能不能同时跑两个实例（比如一个测试一个自用）**
+默认不行：`docker-compose.yml` 里 `container_name: wordnest` 是固定的，
+而且 Compose 的"项目名"取目录名——两个都叫 `WordNest` 的目录会被当成同一个项目，
+第二个实例会把第一个的容器**替换掉**（数据不会丢，但服务会切走）。
+
+需要并存时，复制目录后改三处：`container_name`、宿主机端口（如 `"5001:5000"`），
+并用 `docker compose -p 项目名 up -d` 指定不同项目名。
 
 ---
 
