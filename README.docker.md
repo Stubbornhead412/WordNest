@@ -696,13 +696,21 @@ git status               # 干净
 
 ### 方式 A：网页上传（最省事，不需要 git 网络）
 
-我已生成 `WordNest-github.zip`（在上一级目录，3.77 MB，只含仓库内容）：
+在项目**上一级目录**已经准备好两份可直接上传的东西：
+
+| 文件/目录 | 用途 |
+| --- | --- |
+| `WordNest-github.zip`（3.78 MB） | 发给别人 / 存档 / 自己在本地解压后上传 |
+| `WordNest-github\`（文件夹，90+ 个文件） | **直接拖到 GitHub 网页上传**用这个 |
+
+步骤：
 
 1. 在 GitHub 新建一个空仓库（**不要**勾选 Add a README / .gitignore / license）
 2. 打开仓库 → `Add file` → `Upload files`
-3. 把 **解压后**里面的文件（不是 zip 本身）拖进去 → Commit
+3. 把 **`WordNest-github` 文件夹里的所有内容**（全选 `Ctrl+A`）拖进上传区 → `Commit changes`
 
-> 也可以在网页上直接上传那个 zip：`Add file → Upload files` 支持拖 zip 后自动解压成目录。
+> ⚠️ GitHub 的网页上传**不会自动解压 zip**——直接拖 `.zip` 只会把压缩包当成一个文件提交上去。
+> 所以网页上传请用解压好的 `WordNest-github\` 文件夹（拖文件夹本身也行，会保留目录结构）。
 
 ### 方式 B：命令行推送（需要能连 GitHub）
 
