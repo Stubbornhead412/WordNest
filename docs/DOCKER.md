@@ -10,7 +10,7 @@
 
 ---
 
-## 零、别人拿到这个项目后怎么跑（3 步）
+## 零、快速开始（3 步）
 
 ### 需要什么环境
 
@@ -185,23 +185,20 @@ WORDNEST_PROXY=http://host.docker.internal:7897
 | 移除 | 全局键盘快捷键（空格/方向键误触） |
 | 文档整理 | 二次开发署名、部署手册移入 `docs/`、删除法文 README |
 
-### 关于数据库文件与性能（踩过的坑）
+### 数据库分布与性能说明
 
-Docker Desktop 把 Windows 目录以 **9p/drvfs** 挂载进容器，这个文件系统**不支持 SQLite 的 WAL 共享内存**：
-一旦把 `words.db` 改成 WAL 模式，容器里再开新的连接就会报 `unable to open database file`
-（表现为词表页词数变 0、进度条一直 0）。
-
-所以最终方案是**分工**：
+Docker Desktop 把 Windows 目录以 **9p/drvfs** 挂载进容器，该文件系统不支持 SQLite 的 WAL 共享内存，
+因此项目按用途拆分数据库并使用不同的日志模式：
 
 | 数据库 | 位置 | 日志模式 | 说明 |
 | --- | --- | --- | --- |
-| `words.db` / `demo.db` | `instance/` | 默认（delete） | 你的词库，安全第一 |
-| `study.db` | `study_data/` | 默认（delete） | 学习记录 + 笔记，安全第一 |
+| `words.db` / `demo.db` | `instance/` | 默认（delete） | 词库，优先保证安全 |
+| `study.db` | `study_data/` | 默认（delete） | 学习记录 + 笔记，优先保证安全 |
 | `chat.db` | `chat_data/` | 默认（delete） | AI 对话记录 |
-| `cycle.db` | `study_data/` | **MEMORY + synchronous=OFF** | 只存"本轮抽过哪些词"，**可丢**，换来 ~4ms 写入 |
+| `cycle.db` | `study_data/` | **MEMORY + synchronous=OFF** | 只存"本轮抽过哪些词"，可丢弃，写入约 4 ms |
 
-`cycle.db` 丢了只会导致"本轮重新开始、可能重复出现几个词"，不影响任何真实数据；
-删除它即可手动重置轮次。备份时只需要 `instance/`、`study_data/study.db`、`chat_data/`。
+`cycle.db` 丢失只会让本轮重新开始、可能重复出现几个词，不影响词库与笔记；
+删除该文件即可手动重置轮次。备份时只需保留 `instance/`、`study_data/study.db`、`chat_data/`。
 
 ### 抽词算法（与词数无关，词库随时增删都正确）
 
@@ -312,8 +309,8 @@ ephemeral → The distinction between the two species is ephemeral and partly du
 
 ### 顺手批量补例句 / 记忆法
 
-你的 400 个词导入时例句是空的，可以用脚本一次性补齐（走项目自己的 AI 接口，只改
-`example` / `note`，**不动**你 CSV 里的词性和中文释义，音标会自动保留在笔记末尾）：
+导入时例句默认为空，可以用脚本一次性补齐（走项目自己的 AI 接口，只改
+`example` / `note`，**不动** CSV 里的词性和中文释义，音标会自动保留在笔记末尾）：
 
 ```powershell
 python enrich_words.py --limit 6 --dry-run   # 先预览 6 个，不写库
