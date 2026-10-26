@@ -15,7 +15,8 @@
 > - 🎲 按轮抽词算法：一轮内不重复、词库随时增删都不错位、跨设备/重启接续
 > - 📱 手机 / 远程访问（局域网、Tailscale、Cloudflare 隧道）+ 可选访问密码
 >
-> **完整运行说明、常见问题与改动清单 👉 [docs/DOCKER.md](docs/DOCKER.md)**
+> **完整运行说明、常见问题 👉 [docs/DOCKER.md](docs/DOCKER.md)**
+> **相对上游改了哪些文件、为什么改 👉 [docs/CHANGES.md](docs/CHANGES.md)**
 >
 > 许可证沿用上游 **MIT**，见 [LICENSE](LICENSE)；二次开发部分的版权与原项目一致（MIT）。
 > 如果你是原作者并希望移除本仓库，请联系我处理。

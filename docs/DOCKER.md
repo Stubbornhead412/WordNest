@@ -173,33 +173,17 @@ WORDNEST_PROXY=http://host.docker.internal:7897
 
 ## 三、我相对上游做的改动
 
-| 文件 | 改动 | 原因 |
-| --- | --- | --- |
-| `Dockerfile` | 新增 | python:3.11-slim + espeak-ng（朗读）+ gunicorn，国内 apt/pip 镜像源 |
-| `docker-compose.yml` | 新增 | 端口映射、数据挂载、健康检查、环境变量 |
-| `.env` / `.env.example` | 新增 | 放 API Key 和端口，`.env` 已被 git 忽略 |
-| `.dockerignore` | 新增 | 缩小构建上下文 |
-| `.devcontainer/devcontainer.json` | 新增 | VSCode 一键进容器开发/调试 |
-| `.vscode/*` | 新增 | 任务、调试配置、推荐扩展、编辑器设置 |
-| `start-wordnest.ps1` | 新增 | 一键启动脚本 |
-| `requirements.txt` | 补 `requests` | **上游漏了它**，否则启动直接 `ModuleNotFoundError: No module named 'requests'` |
-| `routes/word_routes.py` | `/speak_word` 输出改为 `.wav` + `audio/wav` | pyttsx3 实际写的是 WAV，原代码标成 `audio/mpeg` 会让部分浏览器放不出声 |
-| `services/llm_service.py` | 新增「词库联动」提示词（`_get_word_bank` / `_word_bank_hint`） | 让 AI 造句时优先复用你词表里的词，见下文 |
-| `import_vocabulary.py` | 新增 | 把 CSV 词表导入 SQLite 并做去重/备份 |
-| `docker-compose.yml` | 加 `WORD_BANK_LIMIT` | 控制每次喂给模型的词库抽样数量，0 = 关闭 |
-| `models.py` | 新增 `StudyRecord` 模型 + `services/study_service.py`、`routes/study_routes.py`、`templates/study_log.html` | **新增功能**：每日学习记录、时间序列图、按天复习 |
-| `app.py` | 修掉"切换词表时清空所有数据库引擎"的隐患 | 原代码会连带清掉 chat/study 的引擎，切换列表后 AI 对话/学习记录可能报错 |
-| `templates/index.html`、`word_list.html` | 加「学习记录」入口 + 复习模式提示条 | 入口与状态可见 |
-| `services/cet4_coach.py`、`templates/_ai_panel.html`、`static/ai_panel.js` | 新增 | **新增功能**：左侧四级冲刺助教侧栏（含快速选词复制） |
-| `routes/ai_routes.py` | 新增 `/ai/coach_stream`、`/ai/quick_words` | 侧栏的流式问答与选词数据 |
-| `models.py`（`Note`）+ `services/notes_service.py`、`routes/notes_routes.py`、`templates/notes.html` | 新增 | **新增功能**：学习笔记（多条、搜索、可关联单词，AI 会参考） |
-| `services/cet4_coach.py` | 注入最近 8 条手写笔记 | 让 AI 记住你自己记的错题和总结 |
-| `utils/net.py` | 新增：统一出网出口（先代理、后直连、自动重试） | 修掉"开 Clash 后容器出网被掐断、AI 报 SSL EOF"的问题 |
-| `app.py` + `requirements.txt` | 接入 flask-compress（gzip） | 列表页 540KB → 102KB，手机/公网访问快很多；SSE 流式不受影响 |
-| `services/cycle_service.py` + `models.py`（`WordCycleMeta`/`WordCycleServed`）+ `services/word_service.py` | 新增：基于"本轮已发集合"的抽词算法 | 修掉"短时间反复出现同一个词"，且**词库随时增删都不会错位** |
-| `static/script.js`、`index.html`、`word_list.html` | 删除全局键盘快捷键（空格看释义 / 方向键切词） | 在输入框打字时空格会误触，释义闪来闪去 |
-| `app.py`（SQLite pragma）+ `models.py`（`cycle.db`）+ `services/word_service.py` + `static/script.js` | 抽词状态单独放 `study_data/cycle.db`（MEMORY 日志）、抽词只查 word 列、加载时保留原单词 | 切词 456ms → **34ms**，去掉"加载中"闪烁 |
-| `enrich_words.py` | 新增 | 批量补例句/记忆法（走项目自己的 AI 接口，断点续跑） |
+**完整清单（按「新增 / 修复 / 功能 / 移除 / 数据」分类，逐项注明原因和验证结果）👉 [CHANGES.md](CHANGES.md)**
+
+一句话概括：上游是「Flask 单机版」，我补的是**跑起来、用得顺、能上手机**这一层——
+
+| 分类 | 主要内容 |
+| --- | --- |
+| 部署 | `Dockerfile`、`docker-compose.yml`、`.env.example`、`.dockerignore`、`.devcontainer`、`.vscode`、`start-wordnest.ps1` |
+| 修复上游问题 | `requirements.txt` 补 `requests`（否则启动即崩）、`/speak_word` 音频类型、切换词表清空引擎、SQLite 在 9p 挂载下的兼容 |
+| 新功能 | 每日学习记录、学习笔记、四级助教侧栏、词库联动例句、按轮抽词算法 + 进度条、可选访问密码、CSV 导入与批量补例句 |
+| 移除 | 全局键盘快捷键（空格/方向键误触） |
+| 文档整理 | 二次开发署名、部署手册移入 `docs/`、删除法文 README |
 
 ### 关于数据库文件与性能（踩过的坑）
 
