@@ -1,0 +1,11 @@
+flask==2.2.5
+Flask-SQLAlchemy==3.0.3
+werkzeug==2.2.3
+pyttsx3
+# 上游 requirements.txt 漏了 requests（services/llm_service.py、ai_service.py、
+# graph_service.py 都 import requests 调用 DeepSeek API），不补会启动失败：
+# ModuleNotFoundError: No module named 'requests'
+requests>=2.31.0
+# 响应 gzip 压缩：列表页原始 HTML 540KB，压缩后约 40KB，
+# 手机/公网访问（尤其是走隧道）时体验差别很大
+flask-compress>=1.14

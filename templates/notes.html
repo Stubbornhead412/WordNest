@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的笔记 · WordNest</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .nt-wrap {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 32px 20px 64px;
+        }
+        .nt-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+        .nt-head h1 {
+            font-size: 26px;
+            margin: 0 0 6px;
+            color: var(--text-color, #2b3040);
+        }
+        .nt-sub { margin: 0; font-size: 13px; color: var(--text-secondary, #8a93a6); }
+        .nt-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+        .nt-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            font-size: 13px;
+            color: var(--text-color, #2b3040);
+            background: var(--card-bg, #fff);
+            border: 1px solid var(--border-color, #e9ecef);
+            border-radius: 10px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all .2s ease;
+            font-family: inherit;
+        }
+        .nt-btn:hover { border-color: var(--primary-color, #4a6cf7); color: var(--primary-color, #4a6cf7); transform: translateY(-1px); }
+        .nt-btn-primary {
+            background: var(--primary-color, #4a6cf7);
+            border-color: var(--primary-color, #4a6cf7);
+            color: #fff;
+        }
+        .nt-btn-primary:hover { background: var(--primary-hover, #3951c6); color: #fff; }
+        .nt-btn-danger { color: #d64545; border-color: #f0c9c9; }
+        .nt-btn-danger:hover { background: #fdf0f0; color: #d64545; border-color: #d64545; }
+        .nt-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+        .nt-toolbar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .nt-search {
+            flex: 1 1 260px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 12px;
+            background: var(--card-bg, #fff);
+            border: 1px solid var(--border-color, #e9ecef);
+            border-radius: 10px;
+        }
+        .nt-search input {
+            flex: 1;
+            border: none;
+            outline: none;
+            background: transparent;
+            font-size: 13px;
+            color: var(--text-color, #2b3040);
+            font-family: inherit;
+        }
+        .nt-count { font-size: 12.5px; color: var(--text-secondary, #8a93a6); }
+
+        .nt-main {
+            display: grid;
+            grid-template-columns: 330px 1fr;
+            gap: 16px;
+            align-items: start;
+        }
+        .nt-panel {
+            background: var(--card-bg, #fff);
+            border: 1px solid var(--border-color, #e9ecef);
+            border-radius: 16px;
+            box-shadow: var(--card-shadow, 0 4px 6px rgba(0,0,0,.06));
+            overflow: hidden;
+        }
+        .nt-list {
+            max-height: calc(100vh - 260px);
+            overflow-y: auto;
+        }
+        .nt-item {
+            padding: 13px 15px;
+            border-bottom: 1px solid var(--border-color, #e9ecef);
+            cursor: pointer;
+            transition: background .15s ease;
+        }
+        .nt-item:hover { background: var(--table-row-hover, #f8f9fa); }
+        .nt-item.active {
+            background: rgba(74, 108, 247, .07);
+            box-shadow: inset 3px 0 0 var(--primary-color, #4a6cf7);
+        }
+        .nt-item-title {
+            font-size: 13.5px;
+            font-weight: 600;
+            color: var(--text-color, #2b3040);
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .nt-item-preview {
+            font-size: 12px;
+            color: var(--text-secondary, #8a93a6);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin-bottom: 6px;
+            word-break: break-word;
+        }
+        .nt-item-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: #aab2c0;
+        }
+        .nt-tag {
+            padding: 1px 7px;
+            border-radius: 999px;
+            background: rgba(74, 108, 247, .1);
+            color: var(--primary-color, #4a6cf7);
+            font-size: 10.5px;
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .nt-empty {
+            padding: 26px 18px;
+            font-size: 13px;
+            color: var(--text-secondary, #8a93a6);
+            text-align: center;
+            line-height: 1.8;
+        }
+
+        .nt-editor { padding: 18px 20px 22px; }
+        .nt-editor-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .nt-editor-title { font-size: 14px; font-weight: 600; color: var(--text-color, #2b3040); }
+        .nt-field { margin-bottom: 12px; }
+        .nt-field label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-secondary, #8a93a6);
+            margin-bottom: 5px;
+        }
+        .nt-input, .nt-textarea {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px 12px;
+            font-size: 13.5px;
+            font-family: inherit;
+            color: var(--text-color, #2b3040);
+            background: var(--input-bg, #fff);
+            border: 1px solid var(--input-border, #ced4da);
+            border-radius: 10px;
+            outline: none;
+        }
+        .nt-input:focus, .nt-textarea:focus { border-color: var(--primary-color, #4a6cf7); }
+        .nt-textarea {
+            min-height: 320px;
+            resize: vertical;
+            line-height: 1.75;
+        }
+        .nt-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .nt-editor-foot {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
+        .nt-hint {
+            font-size: 11.5px;
+            color: #aab2c0;
+            margin-left: auto;
+        }
+        .nt-toast {
+            position: fixed;
+            left: 50%;
+            bottom: 36px;
+            transform: translateX(-50%) translateY(10px);
+            background: rgba(33, 39, 55, .92);
+            color: #fff;
+            font-size: 12.5px;
+            padding: 8px 16px;
+            border-radius: 999px;
+            opacity: 0;
+            pointer-events: none;
+            transition: all .22s ease;
+            z-index: 999;
+        }
+        .nt-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        .dark-mode .nt-panel,
+        .dark-mode .nt-search,
+        .dark-mode .nt-btn { background: #1f2430; border-color: #2c3444; color: #e8ecf4; }
+        .dark-mode .nt-head h1,
+        .dark-mode .nt-item-title,
+        .dark-mode .nt-editor-title { color: #e8ecf4; }
+        .dark-mode .nt-item { border-color: #2c3444; }
+        .dark-mode .nt-item:hover { background: #232936; }
+        .dark-mode .nt-item.active { background: rgba(109, 143, 255, .14); }
+        .dark-mode .nt-input,
+        .dark-mode .nt-textarea { background: #232936; border-color: #2c3444; color: #e8ecf4; }
+
+        @media (max-width: 900px) {
+            .nt-main { grid-template-columns: 1fr; }
+            .nt-list { max-height: 260px; }
+            .nt-row2 { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<main class="nt-wrap">
+    <header class="nt-head">
+        <div>
+            <h1>我的笔记</h1>
+            <p class="nt-sub">背单词时的想法、老师讲的点、易错总结都可以记在这里，AI 助教会把它们当作参考资料</p>
+        </div>
+        <nav class="nt-nav">
+            <a href="/" class="nt-btn">← 返回自测</a>
+            <a href="/word_list" class="nt-btn">单词列表</a>
+            <a href="/study_log" class="nt-btn">学习记录</a>
+            <a href="/knowledge_graph" class="nt-btn">知识图谱</a>
+        </nav>
+    </header>
+
+    <div class="nt-toolbar">
+        <div class="nt-search">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input id="ntSearch" type="search" placeholder="搜索笔记内容 / 标题 / 关联单词…">
+        </div>
+        <button id="ntNew" class="nt-btn nt-btn-primary">+ 新建笔记</button>
+        <span class="nt-count" id="ntCount"></span>
+    </div>
+
+    <div class="nt-main">
+        <section class="nt-panel">
+            <div class="nt-list" id="ntList">
+                <div class="nt-empty">还没有笔记<br>点右上角「新建笔记」记下第一条吧 ✍️</div>
+            </div>
+        </section>
+
+        <section class="nt-panel nt-editor">
+            <div class="nt-editor-head">
+                <span class="nt-editor-title" id="ntMode">新建笔记</span>
+                <span class="nt-hint" id="ntUpdated"></span>
+            </div>
+
+            <div class="nt-field">
+                <label for="ntTitle">标题（可空）</label>
+                <input id="ntTitle" class="nt-input" type="text" placeholder="比如：affect / effect 我总是搞混">
+            </div>
+
+            <div class="nt-row2">
+                <div class="nt-field">
+                    <label for="ntWord">关联单词（可空）</label>
+                    <input id="ntWord" class="nt-input" type="text" placeholder="比如：affect">
+                </div>
+                <div class="nt-field">
+                    <label for="ntTags">标签（可空，逗号分隔）</label>
+                    <input id="ntTags" class="nt-input" type="text" placeholder="比如：易混词,阅读">
+                </div>
+            </div>
+
+            <div class="nt-field">
+                <label for="ntContent">内容 <span id="ntWords" class="nt-hint"></span></label>
+                <textarea id="ntContent" class="nt-textarea" placeholder="随手记：这个词怎么记、在哪个题里错过的、老师的原话、自己的总结……"></textarea>
+            </div>
+
+            <div class="nt-editor-foot">
+                <button id="ntSave" class="nt-btn nt-btn-primary">保存（Ctrl+S）</button>
+                <button id="ntDelete" class="nt-btn nt-btn-danger" style="display:none">删除这条</button>
+                <span class="nt-hint" id="ntStatus"></span>
+            </div>
+        </section>
+    </div>
+</main>
+
+<div id="ntToast" class="nt-toast"></div>
+
+<script>
+(function () {
+    'use strict';
+
+    var elList = document.getElementById('ntList');
+    var elCount = document.getElementById('ntCount');
+    var elSearch = document.getElementById('ntSearch');
+    var elNew = document.getElementById('ntNew');
+    var elTitle = document.getElementById('ntTitle');
+    var elWord = document.getElementById('ntWord');
+    var elTags = document.getElementById('ntTags');
+    var elContent = document.getElementById('ntContent');
+    var elSave = document.getElementById('ntSave');
+    var elDelete = document.getElementById('ntDelete');
+    var elStatus = document.getElementById('ntStatus');
+    var elMode = document.getElementById('ntMode');
+    var elUpdated = document.getElementById('ntUpdated');
+    var elWords = document.getElementById('ntWords');
+    var elToast = document.getElementById('ntToast');
+
+    var PREFILL_WORD = {{ (prefill_word or '')|tojson }};
+    var notes = [];
+    var currentId = null;
+    var searchTimer = null;
+
+    function toast(msg) {
+        elToast.textContent = msg;
+        elToast.classList.add('show');
+        clearTimeout(toast._t);
+        toast._t = setTimeout(function () { elToast.classList.remove('show'); }, 1800);
+    }
+
+    function status(msg) { elStatus.textContent = msg || ''; }
+
+    function updateWordCount() {
+        var n = (elContent.value || '').length;
+        elWords.textContent = n ? n + ' 字' : '';
+    }
+
+    function api(url, options) {
+        return fetch(url, options).then(function (r) {
+            return r.json().then(function (d) {
+                if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+                return d;
+            });
+        });
+    }
+
+    function renderList() {
+        elCount.textContent = notes.length ? ('共 ' + notes.length + ' 条') : '';
+        if (!notes.length) {
+            elList.innerHTML = '<div class="nt-empty">还没有笔记<br>点上方「新建笔记」记下第一条吧 ✍️</div>';
+            return;
+        }
+        elList.innerHTML = '';
+        notes.forEach(function (n) {
+            var item = document.createElement('div');
+            item.className = 'nt-item' + (n.id === currentId ? ' active' : '');
+            item.dataset.id = n.id;
+
+            var title = document.createElement('div');
+            title.className = 'nt-item-title';
+            title.textContent = n.title || (n.preview || '(无标题)');
+
+            var prev = document.createElement('div');
+            prev.className = 'nt-item-preview';
+            prev.textContent = n.title ? (n.preview || '') : (n.content || '').slice(0, 80);
+
+            var meta = document.createElement('div');
+            meta.className = 'nt-item-meta';
+            meta.textContent = n.updated_at || n.created_at || '';
+            if (n.word) {
+                var tag = document.createElement('span');
+                tag.className = 'nt-tag';
+                tag.textContent = n.word;
+                meta.appendChild(tag);
+            }
+
+            item.appendChild(title);
+            item.appendChild(prev);
+            item.appendChild(meta);
+            item.addEventListener('click', function () { selectNote(n.id); });
+            elList.appendChild(item);
+        });
+    }
+
+    function fillEditor(n) {
+        elTitle.value = n ? n.title : '';
+        elWord.value = n ? n.word : PREFILL_WORD;
+        elTags.value = n ? n.tags : '';
+        elContent.value = n ? n.content : '';
+        elMode.textContent = n ? '编辑笔记' : '新建笔记';
+        elUpdated.textContent = n ? ('更新于 ' + (n.updated_at || n.created_at)) : '';
+        elDelete.style.display = n ? 'inline-flex' : 'none';
+        updateWordCount();
+        status('');
+    }
+
+    function selectNote(id) {
+        var n = null;
+        for (var i = 0; i < notes.length; i++) if (notes[i].id === id) n = notes[i];
+        if (!n) return;
+        currentId = id;
+        fillEditor(n);
+        renderList();
+        elContent.focus();
+    }
+
+    function newNote() {
+        currentId = null;
+        fillEditor(null);
+        renderList();
+        elTitle.focus();
+    }
+
+    function loadList(q) {
+        var url = '/notes/api/list' + (q ? ('?q=' + encodeURIComponent(q)) : '');
+        return api(url).then(function (d) {
+            notes = d.notes || [];
+            if (currentId && !notes.some(function (n) { return n.id === currentId; })) {
+                currentId = null;
+            }
+            renderList();
+        }).catch(function (e) {
+            elList.innerHTML = '<div class="nt-empty">加载失败：' + e.message + '</div>';
+        });
+    }
+
+    function save() {
+        var content = (elContent.value || '').trim();
+        if (!content) {
+            status('内容不能为空');
+            elContent.focus();
+            return;
+        }
+        var payload = {
+            title: elTitle.value,
+            word: elWord.value,
+            tags: elTags.value,
+            content: content
+        };
+        elSave.disabled = true;
+        status('保存中…');
+
+        var req = currentId
+            ? api('/notes/api/update/' + currentId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            : api('/notes/api/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+        req.then(function (d) {
+            currentId = d.note.id;
+            status('已保存');
+            toast('已保存');
+            return loadList(elSearch.value.trim()).then(function () {
+                var n = notes.filter(function (x) { return x.id === currentId; })[0];
+                if (n) { fillEditor(n); }
+                renderList();
+            });
+        }).catch(function (e) {
+            status('');
+            toast('保存失败：' + e.message);
+        }).finally(function () {
+            elSave.disabled = false;
+        });
+    }
+
+    function remove() {
+        if (!currentId) return;
+        if (!confirm('确定删除这条笔记？删除后无法恢复。')) return;
+        api('/notes/api/delete/' + currentId, { method: 'POST' })
+            .then(function () {
+                toast('已删除');
+                currentId = null;
+                fillEditor(null);
+                return loadList(elSearch.value.trim());
+            })
+            .catch(function (e) { toast('删除失败：' + e.message); });
+    }
+
+    elSearch.addEventListener('input', function () {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function () {
+            loadList(elSearch.value.trim());
+        }, 280);
+    });
+
+    elNew.addEventListener('click', newNote);
+    elSave.addEventListener('click', save);
+    elDelete.addEventListener('click', remove);
+    elContent.addEventListener('input', updateWordCount);
+
+    document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+            e.preventDefault();
+            save();
+        }
+    });
+
+    // 进入页面：有 ?word= 就预填，方便"随手记"
+    if (PREFILL_WORD) {
+        elMode.textContent = '新建笔记（针对 ' + PREFILL_WORD + '）';
+        elContent.focus();
+    }
+
+    loadList('').then(function () {
+        if (PREFILL_WORD) {
+            elWord.value = PREFILL_WORD;
+            elContent.focus();
+        } else if (notes.length) {
+            selectNote(notes[0].id);
+        }
+    });
+})();
+</script>
+</body>
+</html>

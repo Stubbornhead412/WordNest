@@ -1,0 +1,24 @@
+# 构建镜像时忽略的文件（不影响运行时挂载的数据）
+.git
+.gitignore
+.venv
+venv
+ENV
+__pycache__
+*.py[cod]
+*.so
+.env
+.vscode
+.devcontainer
+screenshots
+*.md
+instance/*.db-journal
+instance/*.db-wal
+instance/*.db-shm
+chat_data
+settings.json
+*.log
+study_data
+.edgeprofile*
+_*.py
+screenshot_*.png

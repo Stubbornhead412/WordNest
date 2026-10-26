@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>请输入访问密码 · WordNest</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .lg-wrap {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .lg-card {
+            width: 100%;
+            max-width: 360px;
+            padding: 28px 24px 24px;
+            background: var(--card-bg, #fff);
+            border: 1px solid var(--border-color, #e9ecef);
+            border-radius: 18px;
+            box-shadow: 0 10px 30px rgba(20, 30, 60, .1);
+        }
+        .lg-card h1 {
+            font-size: 19px;
+            margin: 0 0 6px;
+            color: var(--text-color, #2b3040);
+        }
+        .lg-sub {
+            margin: 0 0 18px;
+            font-size: 12.5px;
+            color: var(--text-secondary, #8a93a6);
+            line-height: 1.6;
+        }
+        .lg-input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 11px 13px;
+            font-size: 15px;
+            font-family: inherit;
+            color: var(--text-color, #2b3040);
+            background: var(--input-bg, #fff);
+            border: 1px solid var(--input-border, #ced4da);
+            border-radius: 10px;
+            outline: none;
+            margin-bottom: 12px;
+        }
+        .lg-input:focus { border-color: var(--primary-color, #4a6cf7); }
+        .lg-btn {
+            width: 100%;
+            padding: 11px 14px;
+            font-size: 14px;
+            font-family: inherit;
+            color: #fff;
+            background: var(--primary-color, #4a6cf7);
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        .lg-btn:hover { background: var(--primary-hover, #3951c6); }
+        .lg-err {
+            margin: 0 0 12px;
+            padding: 8px 11px;
+            font-size: 12.5px;
+            color: #c0392b;
+            background: #fdf0ef;
+            border: 1px solid #f3c9c5;
+            border-radius: 9px;
+        }
+        .lg-foot {
+            margin-top: 14px;
+            font-size: 11.5px;
+            color: #aab2c0;
+            line-height: 1.6;
+        }
+        .dark-mode .lg-card { background: #1f2430; border-color: #2c3444; }
+        .dark-mode .lg-card h1 { color: #e8ecf4; }
+        .dark-mode .lg-input { background: #232936; border-color: #2c3444; color: #e8ecf4; }
+    </style>
+</head>
+<body>
+<main class="lg-wrap">
+    <form class="lg-card" method="post" action="/login">
+        <h1>请输入访问密码</h1>
+        <p class="lg-sub">WordNest 已开启访问保护，输入密码后即可继续背单词。</p>
+
+        {% if error %}<p class="lg-err">{{ error }}</p>{% endif %}
+
+        <input class="lg-input" type="password" name="password" placeholder="访问密码"
+               autocomplete="current-password" autofocus required>
+        <input type="hidden" name="next" value="{{ next_url }}">
+        <button class="lg-btn" type="submit">进入</button>
+
+        <p class="lg-foot">密码来自服务端环境变量 <code>WORDNEST_PASSWORD</code>；
+            登录状态保存在本机浏览器的 Cookie 里。</p>
+    </form>
+</main>
+</body>
+</html>

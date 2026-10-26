@@ -1,0 +1,2249 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单词知识图谱 - 单词自测系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- 引入Inter字体（苹果风格的开源字体）和思源黑体 -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- 修改vis.js加载方式，使用多层故障转移方案 -->
+    <script>
+        // 全局变量用于跟踪加载状态
+        window.visJsLoaded = false;
+    </script>
+    
+    <!-- 首选CDN源，添加crossorigin属性 -->
+    <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.2/dist/vis-network.min.js" 
+            crossorigin="anonymous"
+            onerror="handleVisJsLoadError('主要CDN')" 
+            onload="window.visJsLoaded = true; console.log('主要CDN成功加载vis.js，版本:', vis.version || '未知')"></script>
+    
+    <!-- 添加本地备用方案 -->
+    <script>
+        // 尝试最后从本地加载vis.js（如果之前的方法都失败）
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                if (!window.visJsLoaded) {
+                    console.log("尝试从本地加载vis.js");
+                    let script = document.createElement('script');
+                    script.src = "{{ url_for('static', filename='js/vis-network.min.js') }}";
+                    script.onload = function() {
+                        window.visJsLoaded = true;
+                        console.log("本地vis.js加载成功");
+                        // 如果有图谱数据，尝试重新创建网络图
+                        if ({{ has_graph_data|tojson }}) {
+                            try {
+                                if (typeof createNetwork === 'function') {
+                                    {% if graph_data_json is defined %}
+                                    const graphData = {{ graph_data_json|safe }};
+                                    createNetwork(graphData);
+                                    {% endif %}
+                            } catch (e) {
+                                console.error("重新创建网络图失败:", e);
+                            }
+                        }
+                    };
+                    script.onerror = function() {
+                        console.error("本地vis.js加载失败");
+                        alert("无法加载可视化库，请检查网络连接或联系管理员。");
+                    };
+                    document.head.appendChild(script);
+                }
+            }, 2000);
+        });
+    </script>
+    
+    <!-- 故障转移脚本 -->
+    <script>
+        function handleVisJsLoadError(source) {
+            console.error(`${source}加载失败，尝试下一个来源`);
+            
+            if (source === '主要CDN') {
+                // 尝试备用CDN
+                console.log("尝试备用CDN");
+                let script = document.createElement('script');
+                script.src = "https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js";
+                script.crossOrigin = "anonymous";
+                script.onload = function() {
+                    window.visJsLoaded = true;
+                    console.log("备用CDN成功加载vis.js，版本:", vis.version || "未知");
+                };
+                script.onerror = function() { handleVisJsLoadError('备用CDN'); };
+                document.head.appendChild(script);
+            } 
+            else if (source === '备用CDN') {
+                // 尝试JsDelivr CDN
+                console.log("尝试JsDelivr CDN");
+                let script = document.createElement('script');
+                script.src = "https://cdn.jsdelivr.net/npm/vis-network/dist/vis-network.min.js";
+                script.crossOrigin = "anonymous";
+                script.onload = function() {
+                    window.visJsLoaded = true;
+                    console.log("JsDelivr CDN成功加载vis.js");
+                };
+                script.onerror = function() {
+                    console.error("所有vis.js加载尝试均失败");
+                    alert("无法加载可视化图谱所需的库文件。请检查网络连接或联系管理员。");
+                };
+                document.head.appendChild(script);
+            }
+        }
+        
+        // 页面加载完成后检查vis.js是否成功加载
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                if (!window.visJsLoaded) {
+                    console.error("vis.js库未能成功加载");
+                    alert("图谱可视化库(vis.js)加载失败，图谱功能不可用。请刷新页面重试。");
+                }
+            }, 2000);
+        });
+    </script>
+    
+    <style>
+        /* 知识图谱页面专用样式 */
+        .graph-container {
+            height: calc(100vh - 300px);
+            min-height: 500px;
+            max-height: 800px;
+            width: 100%;
+            position: relative;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 20px 0;
+            background-color: #f8f9fa;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+        }
+        
+        /* 修复暗色模式下标题文字颜色问题 */
+        .dark-mode .control-group h3,
+        .dark-mode .graph-stats h3,
+        .dark-mode .learning-path h3,
+        .dark-mode .form-group label,
+        .dark-mode .subtitle {
+            color: #ffffff !important;
+        }
+        
+        .dark-mode p {
+            color: #e0e0e0 !important;
+        }
+        
+        .dark-mode .stat-label {
+            color: #d0d0d0 !important;
+        }
+        
+        .dark-mode .form-label {
+            color: #f0f0f0 !important;
+        }
+        
+        .graph-container:hover {
+            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+        }
+        
+        .controls-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 20px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .controls-panel:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+        }
+        
+        .control-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .control-group h3 {
+            font-size: 18px;
+            margin-top: 0;
+            margin-bottom: 12px;
+            color: var(--primary-color);
+            border-left: 3px solid var(--primary-color);
+            padding-left: 8px;
+            font-weight: 500;
+        }
+        
+        .form-group {
+            margin-bottom: 12px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            background-color: white;
+            transition: all 0.2s;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .form-group input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.2);
+            outline: none;
+        }
+        
+        .form-group button {
+            padding: 10px 18px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        
+        .form-group button:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+        }
+        
+        .form-group button:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+        
+        /* 更新图谱按钮样式 */
+        .update-graph-btn {
+            padding: 12px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+        }
+        
+        .update-graph-btn:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(52, 152, 219, 0.4);
+        }
+        
+        .update-graph-btn:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
+        }
+        
+        .dark-mode .update-graph-btn {
+            background-color: #5a7ca2;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .dark-mode .update-graph-btn:hover {
+            background-color: #7094b9;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .graph-legend {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            padding: 15px 20px;
+            background-color: white;
+            border-radius: 12px;
+            margin-top: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .graph-legend:hover {
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            background-color: #f5f5f5;
+            transition: all 0.2s;
+        }
+        
+        .legend-item:hover {
+            background-color: #eeeeee;
+            transform: translateY(-1px);
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .legend-text {
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .synonym-color { background-color: #4CAF50; }
+        .antonym-color { background-color: #F44336; }
+        .related-color { background-color: #2196F3; }
+        .topic-color { background-color: #9C27B0; }
+        .root-color { background-color: #FF9800; }
+        
+        .graph-stats {
+            margin-top: 20px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .graph-stats:hover {
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+        }
+        
+        .graph-stats h3 {
+            margin-top: 0;
+            margin-bottom: 16px;
+            font-size: 18px;
+            color: #444;
+            border-left: 3px solid var(--primary-color);
+            padding-left: 8px;
+            font-weight: 500;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .stat-card {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            transition: all 0.2s;
+            border: 1px solid #eee;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+        }
+        
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin: 8px 0;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        /* 加载动画样式 */
+        .loading-overlay {
+            position: fixed; /* 改为fixed相对于视口定位 */
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.95); /* 增加不透明度 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999; /* 提高z-index确保显示在最顶层 */
+            backdrop-filter: blur(5px); /* 增加模糊效果 */
+            pointer-events: all !important; /* 确保接收鼠标事件 */
+            visibility: visible !important; /* 确保可见性 */
+        }
+        
+        .dark-mode .loading-overlay {
+            background-color: rgba(30, 30, 30, 0.95);
+        }
+        
+        .loader {
+            width: 60px;
+            height: 60px;
+            border: 6px solid rgba(52, 152, 219, 0.3);
+            border-top: 6px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .dark-mode .loader {
+            border-color: rgba(82, 115, 255, 0.3);
+            border-top-color: var(--primary-color);
+            box-shadow: 0 0 15px rgba(109, 143, 255, 0.2);
+        }
+        
+        .loading-text {
+            font-size: 18px;
+            color: #555;
+            font-weight: 500;
+            text-align: center;
+            max-width: 80%;
+            line-height: 1.5;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .dark-mode .loading-text {
+            color: #d0d0d0;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .learning-path {
+            margin-top: 20px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .learning-path:hover {
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+        }
+        
+        .learning-path h3 {
+            margin-top: 0;
+            margin-bottom: 16px;
+            font-size: 18px;
+            color: #444;
+            border-left: 3px solid var(--primary-color);
+            padding-left: 8px;
+            font-weight: 500;
+        }
+        
+        .path-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+        }
+        
+        .path-item {
+            background-color: #f0f0f0;
+            padding: 8px 15px;
+            border-radius: 30px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .path-item:hover {
+            background-color: #e0e0e0;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .path-item.marked {
+            background-color: #ffe0b2;
+            font-weight: 500;
+            border-color: #ffb74d;
+        }
+        
+        .path-arrow {
+            margin: 0 5px;
+            color: #999;
+            font-weight: bold;
+        }
+        
+        .node-tooltip {
+            position: absolute;
+            background-color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.15);
+            z-index: 100;
+            font-size: 14px;
+            max-width: 300px;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.2s;
+            border-left: 3px solid var(--primary-color);
+        }
+        
+        .node-tooltip.visible {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .header-section {
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+            animation: fadeIn 0.6s ease-out;
+        }
+        
+        .header-section h1 {
+            font-size: 32px;
+            margin-bottom: 8px;
+            color: #333;
+            position: relative;
+            display: inline-block;
+            font-weight: 600;
+        }
+        
+        .header-section h1:after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            width: 80px;
+            height: 3px;
+            background-color: var(--primary-color);
+            transform: translateX(-50%);
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.5;
+        }
+        
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            animation: fadeIn 0.8s ease-out;
+        }
+        
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            background-color: #f0f0f0;
+            color: #333;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        .back-btn:hover {
+            background-color: #e0e0e0;
+            transform: translateX(-3px);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+        }
+        
+        /* 按钮图标样式 */
+        .btn-icon {
+            width: 18px;
+            height: 18px;
+        }
+        
+        /* 图谱初始提示样式 */
+        .graph-initial-prompt {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(248, 249, 250, 0.95);
+            z-index: 50;
+            padding: 30px;
+        }
+        
+        .prompt-content {
+            text-align: center;
+            padding: 40px;
+            background-color: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            max-width: 80%;
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .prompt-content h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        
+        .prompt-icon {
+            margin: 0 0 20px;
+            font-size: 60px;
+        }
+        
+        .prompt-content p {
+            color: #666;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        
+        /* 暗色模式适配 */
+        .dark-mode .graph-container {
+            background-color: #222;
+            border-color: #444;
+        }
+        
+        .dark-mode .controls-panel,
+        .dark-mode .graph-legend,
+        .dark-mode .graph-stats,
+        .dark-mode .learning-path,
+        .dark-mode .simple-graph-view {
+            background-color: #2d2d2d;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .dark-mode .form-group label {
+            color: #ccc;
+        }
+        
+        .dark-mode .form-group input,
+        .dark-mode .form-group select {
+            background-color: #333;
+            border-color: #555;
+            color: #eee;
+        }
+        
+        .dark-mode .stat-card {
+            background-color: #333;
+            border-color: #444;
+        }
+        
+        .dark-mode .stat-label {
+            color: #bbb;
+        }
+        
+        .dark-mode .path-list {
+            background-color: #333;
+        }
+        
+        .dark-mode .path-item {
+            background-color: #444;
+            border-color: #555;
+            color: #eee;
+        }
+        
+        .dark-mode .node-tooltip {
+            background-color: #333;
+            color: #eee;
+        }
+        
+        .dark-mode .header-section h1 {
+            color: #eee;
+        }
+        
+        .dark-mode .subtitle {
+            color: #bbb;
+        }
+        
+        .dark-mode .back-btn {
+            background-color: #444;
+            color: #eee;
+        }
+        
+        .dark-mode .prompt-content {
+            background-color: #2d2d2d;
+        }
+        
+        .dark-mode .prompt-content h3 {
+            color: #6d8fff;
+        }
+        
+        .dark-mode .prompt-content p {
+            color: #bbb;
+        }
+        
+        .dark-mode .legend-item {
+            background-color: #3a3a3a;
+        }
+        
+        .dark-mode .legend-item:hover {
+            background-color: #444;
+        }
+        
+        /* 响应式布局 */
+        @media (max-width: 768px) {
+            .controls-panel {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .control-group {
+                width: 100%;
+            }
+            
+            .graph-container {
+                height: 400px;
+            }
+            
+            .header-section h1 {
+                font-size: 24px;
+            }
+            
+            .prompt-content {
+                padding: 25px;
+                max-width: 90%;
+            }
+            
+            .back-btn {
+                padding: 8px 15px;
+                font-size: 13px;
+            }
+            
+            .action-bar {
+                margin-bottom: 15px;
+            }
+            
+            .stat-card {
+                padding: 12px;
+            }
+            
+            .stat-value {
+                font-size: 24px;
+            }
+            
+            .button-group {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .form-group button {
+                width: 100%;
+            }
+        }
+        
+        .loading-info {
+            font-size: 14px;
+            color: #777;
+            margin-top: 15px;
+            text-align: center;
+            max-width: 80%;
+            opacity: 0.8;
+        }
+        
+        .dark-mode .loading-info {
+            color: #aaa;
+        }
+        
+        body.loading-active .loading-overlay {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- 主题切换按钮 -->
+    <button id="themeToggleBtn" class="theme-toggle-btn" title="切换主题">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="themeIcon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+    </button>
+
+    <!-- 全局加载动画 -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loader"></div>
+        <div class="loading-text">正在生成知识图谱...</div>
+        <div class="loading-info">请稍候，正在通过API获取单词关系数据</div>
+    </div>
+
+    <div class="container">
+        <div class="header-section">
+            <h1>单词知识图谱</h1>
+            <p class="subtitle">该功能尚在测试环节，感谢您的使用与建议！</p>
+        </div>
+        
+        <div class="action-bar">
+            <a href="/word_list" class="back-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                返回单词列表
+            </a>
+        </div>
+        
+        <div class="controls-panel">
+            <div class="control-group">
+                <h3>图谱焦点</h3>
+                <form action="/knowledge_graph" method="get" id="graphForm">
+                    <div class="form-group">
+                        <label for="focusWordInput">焦点单词：</label>
+                        <input type="text" id="focusWordInput" name="word" placeholder="输入单词作为图谱中心" value="{{ request.args.get('word', '') }}">
+                    </div>
+                    <input type="hidden" name="type" value="all">
+                    <input type="hidden" name="depth" value="2">
+                    <div class="button-group">
+                        <button type="button" id="updateFocusBtn" class="update-graph-btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                            更新图谱
+                        </button>
+                        {% if has_graph_data %}
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div id="graphContainer" class="graph-container">
+            <!-- 初始提示 -->
+            <div id="graphInitialPrompt" class="graph-initial-prompt" style="display: {{ 'none' if has_graph_data else 'block' }}">
+                <div class="prompt-content">
+                    <div class="prompt-icon">🔍</div>
+                    <h3>开始探索知识图谱</h3>
+                    <p>在上方输入框中输入一个英文单词，然后点击"更新图谱"按钮<br>查看与该单词相关的同义词、反义词、相关词和主题词</p>
+                </div>
+            </div>
+            
+            <!-- 图谱状态信息 -->
+            <div id="graphStatus" class="graph-status" style="display: none;"></div>
+            
+            {% if error_message %}
+            <div class="error-message">
+                <p>获取知识图谱时发生错误: {{ error_message }}</p>
+            </div>
+            {% endif %}
+            
+            <!-- 备用的简单视图表格 -->
+            <div class="simple-graph-view" style="display: none;">
+                <div class="simple-view-header">
+                    <h3>知识图谱 - 简易表格视图</h3>
+                    <p>这里提供简易表格视图展示单词关系</p>
+                    <button id="viewToggleBtn" class="btn btn-secondary">切换至图谱视图</button>
+                </div>
+                
+                {% if has_graph_data and focus_word %}
+                <div class="simple-view-focus">
+                    <h4>焦点单词: <span class="focus-word">{{ focus_word }}</span></h4>
+                </div>
+                
+                <div class="simple-view-relations">
+                    {% if grouped_relations %}
+                    <div class="relation-group synonym-group">
+                        <h5>同义词 <span class="relation-dot" style="background-color: {{ relation_colors.synonym }}"></span></h5>
+                        <div class="relation-words">
+                            {% if grouped_relations.synonym %}
+                                {% for word in grouped_relations.synonym %}
+                                <span class="relation-word-tag">{{ word }}</span>
+                                {% endfor %}
+                            {% else %}
+                            <span class="empty-relation">暂无同义词数据</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="relation-group antonym-group">
+                        <h5>反义词 <span class="relation-dot" style="background-color: {{ relation_colors.antonym }}"></span></h5>
+                        <div class="relation-words">
+                            {% if grouped_relations.antonym %}
+                                {% for word in grouped_relations.antonym %}
+                                <span class="relation-word-tag">{{ word }}</span>
+                                {% endfor %}
+                            {% else %}
+                            <span class="empty-relation">暂无反义词数据</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="relation-group related-group">
+                        <h5>相关词 <span class="relation-dot" style="background-color: {{ relation_colors.related }}"></span></h5>
+                        <div class="relation-words">
+                            {% if grouped_relations.related %}
+                                {% for word in grouped_relations.related %}
+                                <span class="relation-word-tag">{{ word }}</span>
+                                {% endfor %}
+                            {% else %}
+                            <span class="empty-relation">暂无相关词数据</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="relation-group topic-group">
+                        <h5>主题词 <span class="relation-dot" style="background-color: {{ relation_colors.topic }}"></span></h5>
+                        <div class="relation-words">
+                            {% if grouped_relations.topic %}
+                                {% for word in grouped_relations.topic %}
+                                <span class="relation-word-tag">{{ word }}</span>
+                                {% endfor %}
+                            {% else %}
+                            <span class="empty-relation">暂无主题词数据</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="no-relations">
+                        <p>未找到单词关系数据</p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="no-focus-word">
+                    <p>请在上方输入框中输入一个单词，然后点击"更新图谱"按钮。</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- 节点信息提示框 -->
+        <div id="nodeTooltip" class="node-tooltip"></div>
+    </div>
+    
+    <div class="graph-legend">
+        <div class="legend-item">
+            <span class="legend-color root-color"></span>
+            <span class="legend-text">中心词</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color synonym-color"></span>
+            <span class="legend-text">同义词</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color antonym-color"></span>
+            <span class="legend-text">反义词</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color related-color"></span>
+            <span class="legend-text">相关词</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color topic-color"></span>
+            <span class="legend-text">主题词</span>
+        </div>
+    </div>
+    
+    <div class="graph-stats">
+        <h3>图谱统计</h3>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="statNodeCount">0</div>
+                <div class="stat-label">单词数量</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statEdgeCount">0</div>
+                <div class="stat-label">关系数量</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statClusterCount">0</div>
+                <div class="stat-label">单词簇数</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="learning-path">
+        <h3>推荐学习路径</h3>
+        <p>基于图谱分析的最优学习顺序：</p>
+        <div class="path-list" id="learningPath">
+            <!-- 学习路径将在这里生成 -->
+        </div>
+    </div>
+</div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("DOM已加载完成");
+            
+            // 获取DOM元素
+            const graphContainer = document.getElementById('graphContainer');
+            const simpleView = document.querySelector('.simple-graph-view');
+            const focusWordInput = document.getElementById('focusWordInput');
+            const viewToggleBtn = document.getElementById('viewToggleBtn');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const graphInitialPrompt = document.getElementById('graphInitialPrompt');
+            const debugBtn = document.getElementById('debugBtn');
+            const zoomInBtn = document.getElementById('zoomInBtn');
+            const zoomOutBtn = document.getElementById('zoomOutBtn');
+            const centerBtn = document.getElementById('centerBtn');
+            const updateFocusBtn = document.getElementById('updateFocusBtn');
+            const learningPath = document.getElementById('learningPath');
+            const statNodeCount = document.getElementById('statNodeCount');
+            const statEdgeCount = document.getElementById('statEdgeCount');
+            const statClusterCount = document.getElementById('statClusterCount');
+            
+            // 检查关键元素是否存在
+            const requiredElements = [
+                { name: 'graphContainer', element: graphContainer },
+                { name: 'updateFocusBtn', element: updateFocusBtn },
+                { name: 'learningPath', element: learningPath }
+            ];
+            
+            let missingElements = requiredElements.filter(item => !item.element);
+            if (missingElements.length > 0) {
+                console.error("关键DOM元素缺失:", missingElements.map(item => item.name).join(', '));
+                // 可以显示友好的错误信息
+                if (graphContainer) {
+                    graphContainer.innerHTML = `
+                        <div style="padding: 20px; text-align: center; color: #F44336;">
+                            <h3>页面加载错误</h3>
+                            <p>某些页面元素未能正确加载，请刷新页面重试。</p>
+                            <p>缺失元素: ${missingElements.map(item => item.name).join(', ')}</p>
+                        </div>
+                    `;
+                }
+            }
+            
+            console.log("DOM元素状态:");
+            console.log("- graphContainer:", graphContainer ? "找到" : "未找到");
+            console.log("- simpleView:", simpleView ? "找到" : "未找到");
+            console.log("- viewToggleBtn:", viewToggleBtn ? "找到" : "未找到");
+            console.log("- learningPath:", learningPath ? "找到" : "未找到");
+            console.log("- statNodeCount:", statNodeCount ? "找到" : "未找到");
+            
+            // 全局变量
+            let network = null;
+            let isSimpleViewMode = false; // 默认为图谱视图
+            
+            // 立即隐藏加载动画
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+            
+            // 视图切换按钮事件绑定
+            if (viewToggleBtn) {
+                console.log("绑定视图切换按钮事件");
+                
+                viewToggleBtn.onclick = function() {
+                    console.log("视图切换按钮被点击");
+                    
+                    // 确保DOM元素存在
+                    if (!simpleView || !graphContainer) {
+                        console.error("视图切换错误: 找不到必要的DOM元素");
+                        alert("视图切换失败: 页面元素不完整");
+                        return;
+                    }
+                    
+                    if (isSimpleViewMode) {
+                        // 从简单视图切换到图谱视图
+                        console.log("切换到图谱视图");
+                        simpleView.style.display = 'none';
+                        graphContainer.style.display = 'block';
+                        viewToggleBtn.textContent = '切换到表格视图';
+                        
+                        // 如果网络图尚未创建且有图谱数据可用
+                        if (!network && {{ has_graph_data|tojson }}) {
+                            {% if graph_data_json is defined %}
+                            const graphData = {{ graph_data_json|safe }};
+                            createNetwork(graphData);
+                            {% else %}
+                            console.warn("无法创建网络图: 图谱数据未定义");
+                            {% endif %}
+                        }
+                    } else {
+                        // 从图谱视图切换到简单视图
+                        console.log("切换到表格视图");
+                        simpleView.style.display = 'block';
+                        graphContainer.style.display = 'none';
+                        viewToggleBtn.textContent = '切换到图谱视图';
+                    }
+                    
+                    isSimpleViewMode = !isSimpleViewMode;
+                };
+            } else {
+                console.warn("视图切换按钮未找到，无法绑定事件");
+            }
+            
+            // 调试按钮事件
+            if (debugBtn) {
+                debugBtn.addEventListener('click', function() {
+                    {% if has_graph_data %}
+                    try {
+                        {% if graph_data_json is defined %}
+                        const data = {{ graph_data_json|safe }};
+                        console.log("完整图谱数据:", data);
+                        
+                        // 显示更详细的调试信息
+                        let debugInfo = `图谱数据状态:\n`;
+                        debugInfo += `- 节点数: ${data.nodes.length}\n`;
+                        debugInfo += `- 边数: ${data.edges.length}\n\n`;
+                        
+                        // 检查vis.js加载状态
+                        debugInfo += `可视化库(vis.js)状态:\n`;
+                        debugInfo += `- 已加载: ${window.visJsLoaded ? "是" : "否"}\n`;
+                        if (window.vis) {
+                            debugInfo += `- 版本: ${window.vis.version || "未知"}\n`;
+                        } else {
+                            debugInfo += `- vis对象不存在\n`;
+                        }
+                        
+                        // 检查图谱容器
+                        const container = document.getElementById('graphContainer');
+                        debugInfo += `\n图谱容器状态:\n`;
+                        debugInfo += `- 存在: ${container ? "是" : "否"}\n`;
+                        if (container) {
+                            debugInfo += `- 可见性: ${container.style.display}\n`;
+                            debugInfo += `- 尺寸: ${container.clientWidth}x${container.clientHeight}\n`;
+                        }
+                        
+                        // 检查网络图实例
+                        debugInfo += `\n网络图实例状态:\n`;
+                        debugInfo += `- 存在: ${window.network ? "是" : "否"}\n`;
+                        
+                        // 显示节点信息
+                        debugInfo += `\n节点信息示例 (最多5个):\n`;
+                        for (let i=0; i < Math.min(5, data.nodes.length); i++) {
+                            const node = data.nodes[i];
+                            debugInfo += `${i+1}. ${node.id} (${node.group || "无组"}) - 颜色: ${node.color}\n`;
+                        }
+                        
+                        alert(debugInfo);
+                        
+                        // 在控制台输出完整数据
+                        console.log("节点数据:", data.nodes);
+                        console.log("边数据:", data.edges);
+                        
+                        // 额外尝试重新初始化网络图
+                        const graphContainer = document.getElementById('graphContainer');
+                        if (!window.network && window.visJsLoaded && graphContainer) {
+                            console.log("尝试重新初始化网络图...");
+                            try {
+                                createNetwork(data);
+                                alert("已尝试重新初始化网络图，请检查是否成功显示。");
+                            } catch (e) {
+                                alert(`重新初始化网络图失败: ${e.message}`);
+                            }
+                        }
+                        {% else %}
+                        alert("图谱数据未正确加载");
+                        {% endif %}
+                    } catch (e) {
+                        alert(`解析图谱数据出错: ${e.message}`);
+                        console.error("解析图谱数据出错:", e);
+                    }
+                    {% else %}
+                    alert("当前页面没有图谱数据");
+                    {% endif %}
+                });
+            }
+            
+            // 检查是否有服务器直接传递的图谱数据
+            {% if has_graph_data %}
+                console.log("服务器直接传递的图谱数据可用");
+                try {
+                    {% if graph_data_json is defined %}
+                    const graphData = {{ graph_data_json|safe }};
+                    console.log("接收到的图谱数据:", graphData);
+                    
+                    // 确保隐藏简单视图，显示图谱视图
+                    if (simpleView) {
+                        simpleView.style.display = 'none';
+                    }
+                    if (graphContainer) {
+                        graphContainer.style.display = 'block';
+                    }
+                    isSimpleViewMode = false;
+                    
+                    // 更新视图切换按钮文本
+                    if (viewToggleBtn) {
+                        viewToggleBtn.textContent = '切换到表格视图';
+                    }
+                    
+                    // 更新统计信息
+                    updateGraphStats(graphData);
+                    
+                    // 生成学习路径
+                    generateLearningPath(graphData);
+                    
+                    // 直接调用图谱渲染函数
+                    setTimeout(function() {
+                        console.log("自动调用createNetwork函数");
+                        if (window.visJsLoaded) {
+                            createNetwork(graphData);
+                            
+                            // 保存图谱数据到本地存储
+                            const focusWord = document.getElementById('focusWordInput').value.trim();
+                            if (focusWord) {
+                                saveGraphDataToLocalStorage(focusWord, graphData);
+                            }
+                        } else {
+                            console.error("无法创建网络图: vis.js库未加载");
+                            alert("无法创建图谱: 可视化库未正确加载。请刷新页面重试。");
+                        }
+                    }, 500); // 延迟一点时间，确保DOM已完全加载
+                    
+                    // 隐藏初始提示
+                    if (graphInitialPrompt) {
+                        graphInitialPrompt.style.display = 'none';
+                    }
+                    
+                    // 添加图谱控制按钮事件
+                    if (zoomInBtn) {
+                        zoomInBtn.addEventListener('click', function() {
+                            if (network) {
+                                network.zoom(1.2); // 放大1.2倍
+                            }
+                        });
+                    }
+                    
+                    if (zoomOutBtn) {
+                        zoomOutBtn.addEventListener('click', function() {
+                            if (network) {
+                                network.zoom(0.8); // 缩小到0.8倍
+                            }
+                        });
+                    }
+                    
+                    if (centerBtn) {
+                        centerBtn.addEventListener('click', function() {
+                            if (network) {
+                                network.fit({
+                                    animation: {
+                                        duration: 800,
+                                        easingFunction: 'easeInOutQuad'
+                                    }
+                                });
+                            }
+                        });
+                    }
+                    
+                    // 恢复节点交互功能
+                    try {
+                        // 悬停提示
+                        network.on('hoverNode', function(params) {
+                            try {
+                                const nodeId = params.node;
+                                const node = visData.nodes.get(nodeId);
+                                
+                                // 在控制台显示节点信息，用于调试
+                                console.log("悬停节点:", node);
+                                
+                                // 显示节点信息
+                                const tooltip = document.getElementById('nodeTooltip');
+                                if (tooltip) {
+                                    tooltip.innerHTML = `
+                                        <div style="font-weight:600; color:${node.color}; font-size:16px;">
+                                            ${node.label}
+                                        </div>
+                                        <div>${node.group || '未分类'}</div>`;
+                                    
+                                    // 定位提示框
+                                    const pointer = params.event.center;
+                                    tooltip.style.left = `${pointer.x + 10}px`;
+                                    tooltip.style.top = `${pointer.y + 10}px`;
+                                    tooltip.style.visibility = 'visible';
+                                    tooltip.style.opacity = '1';
+                                }
+                            } catch (e) {
+                                console.error("显示节点提示时出错:", e);
+                            }
+                        });
+                        
+                        // 移出节点时隐藏提示
+                        network.on('blurNode', function() {
+                            const tooltip = document.getElementById('nodeTooltip');
+                            if (tooltip) {
+                                tooltip.style.visibility = 'hidden';
+                                tooltip.style.opacity = '0';
+                            }
+                        });
+                        
+                        // 点击节点功能
+                        network.on('click', function(params) {
+                            if (params.nodes && params.nodes.length > 0) {
+                                const nodeId = params.nodes[0];
+                                const focusWordInput = document.getElementById('focusWordInput');
+                                if (focusWordInput && nodeId !== focusWordInput.value) {
+                                    focusWordInput.value = nodeId;
+                                    console.log("选择了新的焦点单词:", nodeId);
+                                }
+                            }
+                        });
+                    } catch (e) {
+                        console.error("添加事件监听器时出错:", e);
+                    }
+                    
+                    // 保存图谱数据到本地存储
+                    const focusWord = document.getElementById('focusWordInput').value.trim();
+                    if (focusWord) {
+                        saveGraphDataToLocalStorage(focusWord, graphData);
+                    }
+                    {% else %}
+                    console.log("没有接收到图谱数据");
+                    {% endif %}
+                } catch (error) {
+                    console.error("图谱数据处理出错:", error);
+                    alert("图谱数据处理出错: " + error.message);
+                }
+            {% else %}
+                console.log("没有服务器传递的图谱数据，尝试从本地存储加载");
+                // 尝试从本地存储加载上次的图谱数据
+                const loadedFromStorage = loadGraphDataFromLocalStorage();
+                
+                // 如果没有从本地存储加载到数据，则显示初始提示
+                if (!loadedFromStorage && graphInitialPrompt) {
+                    graphInitialPrompt.style.display = 'block';
+                }
+            {% endif %}
+            
+            console.log("事件绑定完成");
+            
+            // 初始状态隐藏加载动画
+            showLoading(false);
+            
+            // 使用更安全的方式绑定事件
+            function safeBindEvent(element, event, handler) {
+                if (element) {
+                    try {
+                        element.addEventListener(event, handler);
+                        return true;
+                    } catch (e) {
+                        console.error(`为元素绑定${event}事件失败:`, e);
+                        return false;
+                    }
+                }
+                return false;
+            }
+            
+            // 绑定更新按钮事件
+            if (updateFocusBtn) {
+                safeBindEvent(updateFocusBtn, 'click', function(e) {
+                    e.preventDefault(); // 防止表单直接提交
+                    console.log("更新按钮被点击");
+                    
+                    // 显示确认弹窗，提示用户操作将清空当前图谱并消耗token
+                    if (confirm("这将清空现在的知识图谱，并消耗token。确定要继续吗？")) {
+                        renderKnowledgeGraph();
+                    }
+                });
+                console.log("已绑定更新按钮事件");
+            } else {
+                console.error("未找到更新按钮(#updateFocusBtn)");
+            }
+            
+            // 绑定回车键事件
+            if (focusWordInput) {
+                safeBindEvent(focusWordInput, 'keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault(); // 防止表单直接提交
+                        console.log("按下回车键");
+                        
+                        // 显示确认弹窗，提示用户操作将清空当前图谱并消耗token
+                        if (confirm("这将清空现在的知识图谱，并消耗token。确定要继续吗？")) {
+                            renderKnowledgeGraph();
+                        }
+                    }
+                });
+                console.log("已绑定输入框回车事件");
+            }
+
+            // 主题切换相关的脚本
+            const themeToggleBtn = document.getElementById('themeToggleBtn');
+            const themeIcon = document.getElementById('themeIcon');
+            
+            // 检查用户偏好
+            const isDarkMode = localStorage.getItem('darkMode') === 'true';
+            
+            // 应用初始主题
+            if (isDarkMode) {
+                document.documentElement.classList.add('dark-mode');
+                updateThemeIcon(true);
+            }
+            
+            // 主题切换事件
+            themeToggleBtn.addEventListener('click', function() {
+                const isDarkMode = document.documentElement.classList.toggle('dark-mode');
+                localStorage.setItem('darkMode', isDarkMode);
+                updateThemeIcon(isDarkMode);
+            });
+            
+            // 更新图标显示
+            function updateThemeIcon(isDarkMode) {
+                if (isDarkMode) {
+                    // 显示太阳图标（亮色模式图标）
+                    themeIcon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
+                } else {
+                    // 显示月亮图标（暗色模式图标）
+                    themeIcon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+                }
+            }
+        });
+
+        // 全局函数，使其可以被内联onclick调用
+        function renderKnowledgeGraph() {
+            console.log("渲染知识图谱函数被调用");
+            
+            // 获取参数
+            const focusWordInput = document.getElementById('focusWordInput');
+            if (!focusWordInput) {
+                console.error("找不到焦点单词输入框");
+                alert("页面元素缺失，请刷新页面重试");
+                return;
+            }
+            
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const graphInitialPrompt = document.getElementById('graphInitialPrompt');
+            const graphContainer = document.getElementById('graphContainer');
+            
+            const focusWord = focusWordInput.value.trim();
+            console.log("焦点单词:", focusWord);
+            
+            // 验证是否输入了单词
+            if (!focusWord) {
+                alert("请先在输入框中输入一个单词，然后再点击更新图谱");
+                return;
+            }
+            
+            // 第1步：隐藏初始提示（如果有的话）
+            if (graphInitialPrompt) {
+                graphInitialPrompt.style.display = 'none';
+            }
+            
+            // 第2步：隐藏现有网络图（如果存在）
+            if (window.network) {
+                console.log("存在旧图谱，准备在请求成功后销毁");
+                
+                // 标记为隐藏，但不立即销毁，等新数据到来后再销毁
+                try {
+                    const networkCanvas = graphContainer.querySelector('canvas');
+                    if (networkCanvas) {
+                        networkCanvas.style.opacity = '0.1'; // 半透明显示
+                    }
+                } catch (e) {
+                    console.error("设置网络图透明度时出错:", e);
+                }
+            }
+            
+            // 第3步：显示加载动画
+            if (loadingOverlay) {
+                console.log("显示加载动画");
+                
+                // 强制加载动画显示
+                document.body.classList.add('loading-active');
+                loadingOverlay.style.display = 'flex';
+                
+                // 在页面上显式设置样式，防止CSS被覆盖
+                Object.assign(loadingOverlay.style, {
+                    position: 'fixed',
+                    top: '0',
+                    left: '0',
+                    right: '0',
+                    bottom: '0',
+                    display: 'flex',
+                    zIndex: '9999',
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    visibility: 'visible',
+                    opacity: '1'
+                });
+                
+                // 禁用容器交互
+                if (graphContainer) {
+                    graphContainer.style.pointerEvents = 'none';
+                }
+            } else {
+                console.error("找不到加载动画元素");
+            }
+            
+            // 更新加载提示文字
+            const loadingText = document.querySelector('.loading-text');
+            if (loadingText) {
+                loadingText.textContent = "正在生成知识图谱...";
+            }
+            
+            // 网络请求前先检查网络连接
+            if (!navigator.onLine) {
+                console.error("网络连接已断开");
+                hideLoadingAnimation();
+                alert("网络连接已断开，无法生成知识图谱。请检查您的网络连接后重试。");
+                return;
+            }
+            
+            // 构建请求URL
+            let apiUrl = '/api/graph_data';
+            const params = new URLSearchParams();
+            params.append('word', focusWord);
+            
+            console.log("发送请求:", apiUrl + '?' + params.toString());
+            
+            // 使用超时处理
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('请求超时，可能是网络问题或服务器响应慢')), 20000);
+            });
+            
+            // 添加网络状态监听
+            const networkStateHandler = function() {
+                if (!navigator.onLine) {
+                    console.error("网络连接已断开");
+                    hideLoadingAnimation();
+                    alert("网络连接已断开，请求已终止。请检查您的网络连接后重试。");
+                    window.removeEventListener('offline', networkStateHandler);
+                }
+            };
+            
+            // 监听离线事件
+            window.addEventListener('offline', networkStateHandler);
+            
+            // 第4步：发送请求获取新的图谱数据
+            console.log("开始请求新的图谱数据");
+            Promise.race([
+                fetch(apiUrl + '?' + params.toString()),
+                timeoutPromise
+            ])
+                .then(response => {
+                    console.log("收到响应:", response.status);
+                    window.removeEventListener('offline', networkStateHandler);
+                    
+                    if (!response.ok) {
+                        throw new Error(`服务器响应错误(${response.status})：${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("成功获取新图谱数据");
+                    
+                    // 检查返回的数据是否有效
+                    if (!data || (!data.nodes && !data.edges)) {
+                        throw new Error('服务器返回的图谱数据格式无效');
+                    }
+                    
+                    if (data.nodes.length === 0) {
+                        throw new Error('未找到相关单词关系数据，请尝试其他单词');
+                    }
+                    
+                    console.log("数据解析成功，节点数:", data.nodes.length);
+                    
+                    // 第5步：删除原有图谱
+                    if (window.network) {
+                        console.log("销毁原有图谱");
+                        try {
+                            window.network.destroy();
+                            window.network = null;
+                        } catch (e) {
+                            console.error("销毁原有图谱出错:", e);
+                        }
+                    }
+                    
+                    // 更新统计信息
+                    updateGraphStats(data);
+                    
+                    // 生成学习路径
+                    generateLearningPath(data);
+                    
+                    // 第6步：渲染新图谱
+                    console.log("开始渲染新图谱");
+                    createNetwork(data);
+                    
+                    // 保存图谱数据到本地存储
+                    saveGraphDataToLocalStorage(focusWord, data);
+                    
+                    // 第7步：隐藏加载动画
+                    hideLoadingAnimation();
+                })
+                .catch(error => {
+                    console.error('获取图谱数据出错:', error);
+                    
+                    // 隐藏加载动画
+                    hideLoadingAnimation();
+                    
+                    // 还原原图谱显示
+                    if (window.network) {
+                        const networkCanvas = graphContainer.querySelector('canvas');
+                        if (networkCanvas) {
+                            networkCanvas.style.opacity = '1';
+                        }
+                    }
+                    
+                    window.removeEventListener('offline', networkStateHandler);
+                    
+                    // 显示友好的错误信息
+                    let errorMessage = '获取图谱数据失败：';
+                    
+                    if (error.message.includes('请求超时')) {
+                        errorMessage += '请求超时，请检查您的网络连接并重试。';
+                    } else if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
+                        errorMessage += '网络连接错误，请确保您已连接到互联网。';
+                    } else if (error.message.includes('服务器响应错误')) {
+                        errorMessage += error.message;
+                    } else if (error.message.includes('未找到相关单词关系数据')) {
+                        errorMessage += error.message;
+                    } else {
+                        errorMessage += error.message || '未知错误，请重试。';
+                    }
+                    
+                    alert(errorMessage);
+                    
+                    // 如果没有图谱显示，则显示初始提示
+                    if (!window.network && graphInitialPrompt) {
+                        graphInitialPrompt.style.display = 'block';
+                    }
+                });
+            
+            // 辅助函数：隐藏加载动画
+            function hideLoadingAnimation() {
+                if (loadingOverlay) {
+                    // 移除强制加载状态
+                    document.body.classList.remove('loading-active');
+                    loadingOverlay.style.display = 'none';
+                    
+                    // 恢复容器交互
+                    if (graphContainer) {
+                        graphContainer.style.pointerEvents = 'auto';
+                    }
+                }
+            }
+        }
+
+        // 保存图谱数据到本地存储
+        function saveGraphDataToLocalStorage(word, data) {
+            try {
+                localStorage.setItem('knowledgeGraphWord', word);
+                localStorage.setItem('knowledgeGraphData', JSON.stringify(data));
+                console.log("图谱数据已保存到本地存储");
+            } catch (e) {
+                console.error("保存图谱数据到本地存储时出错:", e);
+            }
+        }
+
+        // 从本地存储加载图谱数据
+        function loadGraphDataFromLocalStorage() {
+            try {
+                // 优先检查网络连接状态
+                if (!navigator.onLine) {
+                    console.log("网络已断开，不从本地存储加载数据");
+                    return false;
+                }
+                
+                const word = localStorage.getItem('knowledgeGraphWord');
+                const dataStr = localStorage.getItem('knowledgeGraphData');
+                
+                if (word && dataStr) {
+                    console.log("从本地存储加载图谱数据:", word);
+                    const data = JSON.parse(dataStr);
+                    
+                    // 填充焦点单词输入框
+                    const focusWordInput = document.getElementById('focusWordInput');
+                    if (focusWordInput) {
+                        focusWordInput.value = word;
+                    }
+                    
+                    // 更新统计信息
+                    updateGraphStats(data);
+                    
+                    // 生成学习路径
+                    generateLearningPath(data);
+                    
+                    // 渲染网络图
+                    createNetwork(data);
+                    
+                    // 隐藏初始提示
+                    const graphInitialPrompt = document.getElementById('graphInitialPrompt');
+                    if (graphInitialPrompt) {
+                        graphInitialPrompt.style.display = 'none';
+                    }
+                    
+                    return true;
+                }
+            } catch (e) {
+                console.error("从本地存储加载图谱数据时出错:", e);
+            }
+            return false;
+        }
+
+        // 创建网络图
+        function createNetwork(data) {
+            console.log("开始创建网络图，数据:", data);
+            
+            // 检查网络连接
+            if (!navigator.onLine) {
+                console.error("网络已断开，不创建网络图");
+                alert("网络连接已断开，无法创建知识图谱。请检查您的网络连接后重试。");
+                
+                // 显示初始提示
+                const graphInitialPrompt = document.getElementById('graphInitialPrompt');
+                if (graphInitialPrompt) {
+                    graphInitialPrompt.style.display = 'block';
+                }
+                return;
+            }
+            
+            // 检查图谱数据有效性
+            if (!data || !data.nodes || !data.edges || data.nodes.length === 0) {
+                console.error("图谱数据无效，不创建网络图");
+                alert("无法创建知识图谱：数据无效或不完整");
+                return;
+            }
+            
+            // 检查vis.js是否已加载
+            if (typeof vis === 'undefined') {
+                console.error("无法创建网络图: vis.js库未加载，等待加载完成后重试");
+                
+                // 等待vis.js加载完成后重试
+                setTimeout(function() {
+                    if (typeof vis !== 'undefined') {
+                        console.log("vis.js已加载，重新尝试创建网络图");
+                        createNetwork(data);
+                    } else {
+                        alert("无法创建图谱: 可视化库未能加载。请刷新页面重试。");
+                    }
+                }, 2000);
+                return;
+            }
+            
+            const graphStatus = document.getElementById('graphStatus');
+            const graphContainer = document.getElementById('graphContainer');
+            
+            if (!graphContainer) {
+                console.error("找不到图谱容器元素!");
+                return;
+            }
+            
+            if (graphStatus) {
+                graphStatus.textContent = "正在初始化图谱...";
+                graphStatus.style.display = "block";
+            }
+            
+            try {
+                // 确保图谱容器可见并有足够的尺寸
+                graphContainer.style.display = 'block';
+                if (graphContainer.clientHeight < 100) {
+                    console.log("图谱容器高度不足，设置最小高度");
+                    graphContainer.style.minHeight = '500px';
+                }
+                
+                // 如果存在早先的网络图实例，销毁它
+                if (window.network) {
+                    console.log("销毁现有网络图实例");
+                    try {
+                        window.network.destroy();
+                    } catch (e) {
+                        console.error("销毁现有网络图时出错:", e);
+                    }
+                    window.network = null;
+                }
+                
+                // 修改数据结构，创建聚合节点
+                console.log("创建聚合节点数据结构");
+                let aggregatedNodes = [];
+                let aggregatedEdges = [];
+                
+                // 找到中心节点
+                const centerNode = data.nodes.find(node => node.isRoot || node.group === 'root');
+                if (centerNode) {
+                    aggregatedNodes.push({
+                        id: centerNode.id,
+                        label: centerNode.label,
+                        color: centerNode.color,
+                        font: { size: 20, color: '#333' },
+                        size: 30,
+                        isRoot: true,
+                        group: 'root'
+                    });
+                } else if (data.nodes.length > 0) {
+                    // 如果没有明确的中心节点，使用第一个节点
+                    const firstNode = data.nodes[0];
+                    aggregatedNodes.push({
+                        id: firstNode.id,
+                        label: firstNode.label,
+                        color: '#FF9800',
+                        font: { size: 20, color: '#333' },
+                        size: 30,
+                        isRoot: true,
+                        group: 'root'
+                    });
+                } else {
+                    console.error("无法找到中心节点");
+                    return;
+                }
+                
+                // 创建聚合节点和它们的边
+                const relationTypes = ['synonym', 'antonym', 'related', 'topic'];
+                const relationColors = {
+                    'synonym': '#4CAF50',
+                    'antonym': '#F44336',
+                    'related': '#2196F3',
+                    'topic': '#9C27B0'
+                };
+                const relationLabels = {
+                    'synonym': '同义',
+                    'antonym': '反义',
+                    'related': '相关',
+                    'topic': '主题'
+                };
+                
+                // 按类型分组节点
+                const groupedNodes = {};
+                relationTypes.forEach(type => {
+                    groupedNodes[type] = data.nodes.filter(node => node.group === type);
+                });
+                
+                // 为每个非空组创建一个聚合节点
+                relationTypes.forEach(type => {
+                    if (groupedNodes[type].length > 0) {
+                        // 创建该类型的聚合节点
+                        const nodeLabel = groupedNodes[type].length > 1 
+                            ? groupedNodes[type].map(n => n.label).join('\n')
+                            : groupedNodes[type][0].label;
+                        
+                        const aggregateId = `${type}_group`;
+                        aggregatedNodes.push({
+                            id: aggregateId,
+                            label: nodeLabel,
+                            color: relationColors[type],
+                            shape: 'box',
+                            font: { size: 14, color: '#333', multi: 'html' },
+                            size: 20 + (groupedNodes[type].length * 2),
+                            group: type,
+                            title: `${relationLabels[type]}词: ${groupedNodes[type].map(n => n.label).join(', ')}`
+                        });
+                        
+                        // 创建从中心节点到聚合节点的边
+                        aggregatedEdges.push({
+                            from: centerNode.id,
+                            to: aggregateId,
+                            label: relationLabels[type],
+                            color: {
+                                color: relationColors[type],
+                                highlight: '#FFB74D'
+                            },
+                            width: 3,
+                            arrows: {
+                                to: { enabled: true, scaleFactor: 0.5 }
+                            }
+                        });
+                    }
+                });
+                
+                // 检测当前是否为暗色模式
+                const isDarkMode = document.documentElement.classList.contains('dark-mode');
+                
+                // 根据主题模式设置图谱颜色
+                const backgroundColor = isDarkMode ? '#1e1e1e' : '#f8f9fa';
+                const fontColor = isDarkMode ? '#f1f1f1' : '#333333';
+                const edgeFontColor = isDarkMode ? '#e0e0e0' : '#666666';
+                
+                // 网络图配置选项
+                const options = {
+                    nodes: {
+                        shape: 'box',
+                        font: {
+                            face: 'Noto Sans SC',
+                            size: 14,
+                            color: fontColor
+                        },
+                        borderWidth: 2,
+                        shadow: true
+                    },
+                    edges: {
+                        width: 2,
+                        selectionWidth: 3,
+                        smooth: {
+                            type: 'continuous',
+                            forceDirection: 'none'
+                        },
+                        font: {
+                            face: 'Noto Sans SC',
+                            size: 12,
+                            align: 'middle',
+                            color: edgeFontColor
+                        }
+                    },
+                    physics: {
+                        enabled: true,
+                        stabilization: {
+                            enabled: true,
+                            iterations: 100,
+                            fit: true
+                        },
+                        barnesHut: {
+                            gravitationalConstant: -2000,
+                            centralGravity: 0.1,
+                            springLength: 150,
+                            springConstant: 0.04,
+                            damping: 0.09
+                        }
+                    },
+                    interaction: {
+                        hover: true,
+                        tooltipDelay: 300,
+                        zoomView: true,
+                        dragView: true
+                    },
+                    layout: {
+                        improvedLayout: true,
+                        hierarchical: {
+                            enabled: false
+                        }
+                    },
+                    groups: {
+                        // 为各种节点类型定义样式
+                        root: {
+                            shape: 'circle',
+                            color: {
+                                background: '#FF9800',
+                                border: '#E65100'
+                            },
+                            size: 30,
+                            font: {
+                                size: 18,
+                                color: fontColor
+                            }
+                        },
+                        synonym: {
+                            shape: 'box',
+                            color: {
+                                background: '#4CAF50',
+                                border: '#2E7D32'
+                            }
+                        },
+                        antonym: {
+                            shape: 'box',
+                            color: {
+                                background: '#F44336',
+                                border: '#C62828'
+                            }
+                        },
+                        related: {
+                            shape: 'box',
+                            color: {
+                                background: '#2196F3',
+                                border: '#1565C0'
+                            }
+                        },
+                        topic: {
+                            shape: 'box',
+                            color: {
+                                background: '#9C27B0',
+                                border: '#6A1B9A'
+                            }
+                        }
+                    }
+                };
+                
+                console.log("创建网络图实例");
+                // 设置图谱容器背景颜色
+                graphContainer.style.backgroundColor = backgroundColor;
+                
+                // 输出容器尺寸信息用于调试
+                console.log("图谱容器尺寸:", graphContainer.clientWidth, "x", graphContainer.clientHeight);
+                
+                // 创建网络图
+                try {
+                    // 使用聚合的节点和边创建数据集
+                    let visData = { 
+                        nodes: new vis.DataSet(aggregatedNodes), 
+                        edges: new vis.DataSet(aggregatedEdges) 
+                    };
+                    
+                    // 记录用于调试
+                    console.log("聚合后的节点数量:", aggregatedNodes.length);
+                    console.log("聚合后的边数量:", aggregatedEdges.length);
+                    
+                    // 尝试创建网络图
+                    console.log("开始创建网络图实例...");
+                    let visualNetwork = new vis.Network(
+                        graphContainer, 
+                        visData, 
+                        options
+                    );
+                    
+                    window.network = visualNetwork;
+                    window.visData = visData; // 保存数据引用以便后续使用
+                    console.log("网络图实例创建成功");
+                    
+                    // 可靠事件监听
+                    visualNetwork.on('stabilizationProgress', function(params) {
+                        console.log('稳定化进度:', params.iterations, '/', params.total);
+                    });
+                    
+                    visualNetwork.on('stabilizationIterationsDone', function() {
+                        console.log('图谱稳定化完成');
+                        showLoading(false);
+                    });
+                    
+                    visualNetwork.on('stabilized', function() {
+                        console.log("网络图已稳定");
+                        if (graphStatus) {
+                            graphStatus.textContent = "图谱加载完成";
+                            setTimeout(function() {
+                                graphStatus.style.display = "none";
+                            }, 2000);
+                        }
+                    });
+                    
+                    // 添加节点点击事件
+                    visualNetwork.on('click', function(params) {
+                        if (params.nodes && params.nodes.length > 0) {
+                            const nodeId = params.nodes[0];
+                            const node = visData.nodes.get(nodeId);
+                            
+                            if (node && node.id.includes('_group')) {
+                                // 当点击分组节点时，显示详细信息
+                                alert(`${node.title}`);
+                            } else if (node && !node.isRoot) {
+                                // 可以选择将非根节点设为新的焦点
+                                const focusWordInput = document.getElementById('focusWordInput');
+                                if (focusWordInput) {
+                                    focusWordInput.value = node.label.split('\n')[0]; // 使用第一个单词
+                                }
+                            }
+                        }
+                    });
+                    
+                    // 添加悬停提示
+                    visualNetwork.on('hoverNode', function(params) {
+                        try {
+                            const nodeId = params.node;
+                            const node = visData.nodes.get(nodeId);
+                            
+                            if (node) {
+                                // 在控制台显示节点信息，用于调试
+                                console.log("悬停节点:", node);
+                                
+                                // 显示节点信息
+                                const tooltip = document.getElementById('nodeTooltip');
+                                if (tooltip) {
+                                    let tooltipContent = '';
+                                    
+                                    if (node.isRoot) {
+                                        tooltipContent = `<div style="font-weight:600; color:${node.color}; font-size:16px;">
+                                            ${node.label}
+                                        </div>
+                                        <div>中心词</div>`;
+                                    } else {
+                                        tooltipContent = `<div style="font-weight:600; color:${node.color}; font-size:16px;">
+                                            ${node.title || node.label}
+                                        </div>`;
+                                    }
+                                    
+                                    tooltip.innerHTML = tooltipContent;
+                                    
+                                    // 定位提示框
+                                    const pointer = params.event.center;
+                                    tooltip.style.left = `${pointer.x + 10}px`;
+                                    tooltip.style.top = `${pointer.y + 10}px`;
+                                    tooltip.style.visibility = 'visible';
+                                    tooltip.style.opacity = '1';
+                                }
+                            }
+                        } catch (e) {
+                            console.error("显示节点提示时出错:", e);
+                        }
+                    });
+                    
+                    // 移出节点时隐藏提示
+                    visualNetwork.on('blurNode', function() {
+                        const tooltip = document.getElementById('nodeTooltip');
+                        if (tooltip) {
+                            tooltip.style.visibility = 'hidden';
+                            tooltip.style.opacity = '0';
+                        }
+                    });
+                    
+                } catch (error) {
+                    console.error("创建网络图实例时出错:", error);
+                    alert("创建图谱时出错: " + error.message);
+                    
+                    // 记录更详细的错误信息
+                    console.error("错误详情:", {
+                        message: error.message,
+                        stack: error.stack,
+                        data: {
+                            nodes: aggregatedNodes.length,
+                            edges: aggregatedEdges.length,
+                            container: graphContainer ? {
+                                width: graphContainer.clientWidth,
+                                height: graphContainer.clientHeight,
+                                display: graphContainer.style.display
+                            } : 'missing'
+                        }
+                    });
+                    
+                    // 尝试备用的简单显示
+                    showSimpleView();
+                }
+            } catch (error) {
+                console.error("创建网络图时出错:", error);
+                alert("创建网络图时出错: " + error.message + "\n请检查控制台以获取详细信息。");
+                
+                // 尝试备用的简单显示
+                showSimpleView();
+            }
+        }
+        
+        // 添加一个备用的简单显示函数
+        function showSimpleView() {
+            console.log("切换到简单表格视图");
+            const simpleView = document.querySelector('.simple-graph-view');
+            const graphContainer = document.getElementById('graphContainer');
+            
+            if (simpleView && graphContainer) {
+                simpleView.style.display = 'block';
+                graphContainer.style.display = 'none';
+                
+                // 更新视图切换按钮文本
+                const viewToggleBtn = document.getElementById('viewToggleBtn');
+                if (viewToggleBtn) {
+                    viewToggleBtn.textContent = '尝试图谱视图';
+                }
+            }
+        }
+        
+        // 更新图谱统计信息
+        function updateGraphStats(data) {
+            try {
+                const nodeCountElement = document.getElementById('statNodeCount');
+                const edgeCountElement = document.getElementById('statEdgeCount');
+                const clusterCountElement = document.getElementById('statClusterCount');
+                
+                if (nodeCountElement) {
+                    nodeCountElement.textContent = data.nodes.length;
+                }
+                
+                if (edgeCountElement) {
+                    edgeCountElement.textContent = data.edges.length;
+                }
+                
+                if (clusterCountElement) {
+                    // 计算簇数（估算值）
+                    const clusterCount = Math.max(1, Math.ceil(data.nodes.length / 5));
+                    clusterCountElement.textContent = clusterCount;
+                }
+            } catch (e) {
+                console.error("更新图谱统计信息时出错:", e);
+            }
+        }
+        
+        // 生成学习路径
+        function generateLearningPath(data) {
+            // 获取学习路径容器元素
+            const learningPathContainer = document.getElementById('learningPath');
+            
+            // 如果容器不存在，则记录错误并退出
+            if (!learningPathContainer) {
+                console.error("找不到学习路径容器元素 #learningPath");
+                return;
+            }
+            
+            // 清空现有路径
+            learningPathContainer.innerHTML = '';
+            
+            try {
+                // 基于节点排序，但不考虑标记状态
+                const pathNodes = [...data.nodes].sort((a, b) => {
+                    // 计算节点连接数（代表单词的关联强度）
+                    const aConnections = data.edges.filter(e => 
+                        e.from === a.id || e.to === a.id).length;
+                    const bConnections = data.edges.filter(e => 
+                        e.from === b.id || e.to === b.id).length;
+                    
+                    // 简单词（关联多）优先
+                    return bConnections - aConnections;
+                });
+                
+                // 创建路径元素
+                pathNodes.slice(0, 10).forEach((node, index) => {
+                    const pathItem = document.createElement('span');
+                    pathItem.className = 'path-item';
+                    pathItem.textContent = node.label;
+                    
+                    // 添加到路径容器
+                    learningPathContainer.appendChild(pathItem);
+                    
+                    // 添加箭头（除了最后一项）
+                    if (index < pathNodes.length - 1 && index < 9) {
+                        const arrow = document.createElement('span');
+                        arrow.className = 'path-arrow';
+                        arrow.textContent = '→';
+                        learningPathContainer.appendChild(arrow);
+                    }
+                    
+                    // 修改点击事件：导航到add_word页面并预填单词
+                    pathItem.addEventListener('click', function() {
+                        const word = node.id;
+                        // 重定向到add_word页面并通过URL参数传递单词
+                        window.location.href = `/add_word?word=${encodeURIComponent(word)}`;
+                    });
+                });
+            } catch (e) {
+                console.error("生成学习路径时出错:", e);
+                // 在容器中显示错误信息
+                learningPathContainer.innerHTML = '<div style="color:#F44336;">生成学习路径时出错</div>';
+            }
+        }
+        
+        // 显示/隐藏加载动画
+        function showLoading(show) {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (!loadingOverlay) {
+                console.error("找不到加载动画overlay元素");
+                return;
+            }
+            
+            if (show) {
+                loadingOverlay.style.display = 'flex';
+                // 添加防止点击穿透
+                document.querySelector('.graph-container').style.pointerEvents = 'none';
+            } else {
+                loadingOverlay.style.display = 'none';
+                // 恢复点击事件
+                document.querySelector('.graph-container').style.pointerEvents = 'auto';
+            }
+        }
+    </script>
+</body>
+</html> 

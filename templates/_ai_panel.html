@@ -1,0 +1,384 @@
+{# 左侧四级冲刺助教侧栏：样式 + 结构，逻辑在 static/ai_panel.js #}
+<style>
+    .ai-coach {
+        position: fixed;
+        left: 20px;
+        top: 76px;
+        bottom: 20px;
+        width: var(--ai-coach-w, 330px);
+        z-index: 300;
+        display: flex;
+        flex-direction: column;
+        background: var(--card-bg, #fff);
+        border: 1px solid var(--border-color, #e9ecef);
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(20, 30, 60, 0.12);
+        overflow: hidden;
+        transition: width .22s ease, opacity .22s ease, transform .22s ease;
+        font-family: inherit;
+    }
+    .ai-coach.resizing { transition: none; }
+
+    /* 右边缘拖拽把手：拖动即可加宽/收窄 */
+    .ai-coach-resizer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 10px;
+        height: 100%;
+        cursor: col-resize;
+        z-index: 6;
+        background: transparent;
+        touch-action: none;
+    }
+    .ai-coach-resizer::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        right: 3px;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 46px;
+        border-radius: 3px;
+        background: var(--border-color, #e9ecef);
+        transition: background .18s ease, height .18s ease;
+    }
+    .ai-coach-resizer:hover::after,
+    .ai-coach.resizing .ai-coach-resizer::after {
+        background: var(--primary-color, #4a6cf7);
+        height: 72px;
+    }
+    .ai-coach.collapsed .ai-coach-resizer { display: none; }
+    .ai-coach.collapsed {
+        width: 46px;
+    }
+    .ai-coach.collapsed .ai-coach-body { display: none; }
+    .ai-coach.collapsed .ai-coach-toggle { display: flex; }
+    .ai-coach-toggle {
+        display: none;
+        position: absolute;
+        inset: 0;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 6px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        color: var(--primary-color, #4a6cf7);
+        font-size: 18px;
+    }
+    .ai-coach.collapsed .ai-coach-toggle span {
+        writing-mode: vertical-rl;
+        font-size: 12px;
+        letter-spacing: 2px;
+    }
+
+    .ai-coach-body {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+    }
+    .ai-coach-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border-color, #e9ecef);
+        background: linear-gradient(180deg, rgba(74,108,247,.07), transparent);
+    }
+    .ai-coach-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text-color, #2b3040);
+        display: flex;
+        flex-direction: column;
+        line-height: 1.3;
+    }
+    .ai-coach-sub {
+        font-size: 10.5px;
+        font-weight: 400;
+        color: var(--text-secondary, #8a93a6);
+    }
+    .ai-coach-tools { display: flex; gap: 4px; }
+    .ai-coach-tools button {
+        border: 1px solid var(--border-color, #e9ecef);
+        background: var(--card-bg, #fff);
+        color: var(--text-secondary, #8a93a6);
+        border-radius: 8px;
+        padding: 4px 8px;
+        font-size: 11px;
+        cursor: pointer;
+    }
+    .ai-coach-tools button:hover { color: var(--primary-color, #4a6cf7); border-color: var(--primary-color, #4a6cf7); }
+
+    .ai-coach-quick {
+        display: flex;
+        gap: 6px;
+        padding: 10px 14px 4px;
+        flex-wrap: wrap;
+    }
+    .ai-quick-chip {
+        border: 1px solid rgba(74, 108, 247, .28);
+        background: rgba(74, 108, 247, .06);
+        color: var(--primary-color, #4a6cf7);
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 11.5px;
+        cursor: pointer;
+        transition: all .18s ease;
+    }
+    .ai-quick-chip:hover { background: rgba(74, 108, 247, .14); transform: translateY(-1px); }
+
+    .ai-coach-words {
+        padding: 8px 14px 6px;
+        border-bottom: 1px dashed var(--border-color, #e9ecef);
+    }
+    .ai-words-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+    }
+    .ai-tab {
+        border: none;
+        background: transparent;
+        color: var(--text-secondary, #8a93a6);
+        font-size: 11.5px;
+        padding: 2px 6px;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+    .ai-tab.active {
+        color: var(--primary-color, #4a6cf7);
+        background: rgba(74, 108, 247, .1);
+        font-weight: 600;
+    }
+    .ai-copy-all {
+        margin-left: auto;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary, #8a93a6);
+        font-size: 11px;
+        cursor: pointer;
+        text-decoration: underline dotted;
+    }
+    .ai-copy-all:hover { color: var(--primary-color, #4a6cf7); }
+    .ai-word-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        max-height: 88px;
+        overflow-y: auto;
+    }
+    .ai-word {
+        border: 1px solid var(--border-color, #e9ecef);
+        background: var(--table-row-hover, #f8f9fa);
+        color: var(--text-color, #2b3040);
+        border-radius: 7px;
+        padding: 3px 8px;
+        font-size: 11.5px;
+        cursor: pointer;
+        transition: all .15s ease;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .ai-word:hover { border-color: var(--primary-color, #4a6cf7); color: var(--primary-color, #4a6cf7); }
+    .ai-words-empty { font-size: 11.5px; color: var(--text-secondary, #8a93a6); }
+
+    .ai-coach-messages {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        font-size: 13px;
+        line-height: 1.62;
+    }
+    .ai-msg { display: flex; }
+    .ai-msg.user { justify-content: flex-end; }
+    .ai-bubble {
+        max-width: 92%;
+        padding: 9px 12px;
+        border-radius: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    .ai-msg.assistant .ai-bubble {
+        background: var(--table-row-hover, #f8f9fa);
+        color: var(--text-color, #2b3040);
+        border-top-left-radius: 4px;
+    }
+    .ai-msg.user .ai-bubble {
+        background: var(--primary-color, #4a6cf7);
+        color: #fff;
+        border-top-right-radius: 4px;
+    }
+    .ai-bubble code {
+        background: rgba(0, 0, 0, .07);
+        border-radius: 4px;
+        padding: 0 4px;
+        font-size: 12px;
+    }
+    .ai-typing { color: var(--text-secondary, #8a93a6); font-size: 12px; }
+
+    .ai-coach-form {
+        display: flex;
+        gap: 8px;
+        padding: 10px 12px 12px;
+        border-top: 1px solid var(--border-color, #e9ecef);
+        align-items: flex-end;
+    }
+    .ai-coach-form textarea {
+        flex: 1 1 auto;
+        resize: none;
+        max-height: 110px;
+        min-height: 38px;
+        padding: 9px 10px;
+        font-size: 12.5px;
+        font-family: inherit;
+        color: var(--text-color, #2b3040);
+        background: var(--input-bg, #fff);
+        border: 1px solid var(--input-border, #ced4da);
+        border-radius: 10px;
+        outline: none;
+    }
+    .ai-coach-form textarea:focus { border-color: var(--primary-color, #4a6cf7); }
+    .ai-coach-form button {
+        border: none;
+        background: var(--primary-color, #4a6cf7);
+        color: #fff;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 12.5px;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .ai-coach-form button:disabled { opacity: .55; cursor: not-allowed; }
+
+    .ai-toast {
+        position: fixed;
+        left: 50%;
+        bottom: 40px;
+        transform: translateX(-50%) translateY(12px);
+        background: rgba(33, 39, 55, .92);
+        color: #fff;
+        font-size: 12.5px;
+        padding: 8px 16px;
+        border-radius: 999px;
+        opacity: 0;
+        pointer-events: none;
+        transition: all .22s ease;
+        z-index: 999;
+    }
+    .ai-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* 展开时给正文让出空间（宽度由 --ai-coach-w 决定，可拖拽调整） */
+    body.ai-coach-open { padding-left: calc(var(--ai-coach-w, 330px) + 20px); transition: padding-left .22s ease; }
+
+    .dark-mode .ai-coach { background: #1f2430; border-color: #2c3444; }
+    .dark-mode .ai-coach-tools button { background: #232936; border-color: #2c3444; }
+    .dark-mode .ai-word { background: #232936; border-color: #2c3444; color: #dfe5f0; }
+    .dark-mode .ai-msg.assistant .ai-bubble { background: #232936; color: #e6ebf5; }
+    .dark-mode .ai-coach-head { background: linear-gradient(180deg, rgba(109,143,255,.12), transparent); }
+
+    /* 默认宽度：中等屏幕略窄，大屏略宽（用户拖拽后会覆盖这个变量） */
+    :root { --ai-coach-w: 330px; }
+    @media (min-width: 1600px) {
+        :root { --ai-coach-w: 372px; }
+    }
+    @media (max-width: 1600px) {
+        .ai-coach-sub { display: none; }
+    }
+
+    /* 窄屏：改为底部浮层，不再挤压正文 */
+    @media (max-width: 1200px) {
+        body.ai-coach-open { padding-left: 0; }
+        .ai-coach { left: 8px; right: 8px; width: auto; top: auto; height: 62vh; bottom: 8px; }
+        .ai-coach.collapsed { width: 48px; right: auto; height: 48px; border-radius: 14px; }
+        /* 手机上的折叠态只留图标，避免竖排文字被压扁 */
+        .ai-coach.collapsed .ai-coach-toggle span { display: none; }
+        .ai-coach.collapsed .ai-coach-toggle { font-size: 22px; }
+        .ai-coach-resizer { display: none; }
+    }
+
+    /* 刷新按钮的转圈反馈 */
+    @keyframes ai-spin { to { transform: rotate(360deg); } }
+    .ai-refresh-icon.spinning { display: inline-block; animation: ai-spin .9s linear infinite; }
+    .ai-refresh {
+        margin-left: auto;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary, #8a93a6);
+        font-size: 11px;
+        cursor: pointer;
+        padding: 2px 4px;
+    }
+    .ai-refresh:hover { color: var(--primary-color, #4a6cf7); }
+    .ai-refresh-dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-left: 4px;
+        border-radius: 50%;
+        background: #28a745;
+        vertical-align: middle;
+        opacity: 0;
+        transition: opacity .2s ease;
+    }
+    .ai-refresh-dot.on { opacity: 1; }
+
+</style>
+
+<div id="aiCoach" class="ai-coach">
+    <div id="aiCoachResizer" class="ai-coach-resizer" title="拖动可加宽 / 收窄（双击还原默认宽度）"></div>
+    <button id="aiCoachToggle" class="ai-coach-toggle" title="展开 AI 四级助教">
+        <span>AI 四级助教</span>🤖
+    </button>
+    <div class="ai-coach-body">
+        <header class="ai-coach-head">
+            <div class="ai-coach-title">
+                四级冲刺助教
+                <span class="ai-coach-sub">结合你的单词进度 · 翻译/阅读/语法/易混词</span>
+            </div>
+            <div class="ai-coach-tools">
+                <button id="aiCoachWide" title="一键加宽 / 还原宽度">⤢</button>
+                <button id="aiCoachClear" title="清空当前对话">清空</button>
+                <button id="aiCoachCollapse" title="收起侧栏">‹</button>
+            </div>
+        </header>
+
+        <div class="ai-coach-quick" id="aiCoachQuick"></div>
+
+        <div class="ai-coach-words">
+            <div class="ai-words-head">
+                <button class="ai-tab active" data-tab="today" id="aiTabToday">今天学的</button>
+                <button class="ai-tab" data-tab="marked" id="aiTabMarked">星标词</button>
+                <button id="aiRefreshWords" class="ai-refresh" title="同步右侧最新刷过的单词（不会清空对话）">
+                    <span class="ai-refresh-icon">↻</span> 同步<span class="ai-refresh-dot" id="aiRefreshDot"></span>
+                </button>
+                <button id="aiCopyAll" class="ai-copy-all" title="复制当前列表里的全部单词">复制全部</button>
+            </div>
+            <div id="aiWordList" class="ai-word-list">
+                <span class="ai-words-empty">点击词块即可复制…</span>
+            </div>
+        </div>
+
+        <div id="aiCoachMessages" class="ai-coach-messages"></div>
+
+        <form id="aiCoachForm" class="ai-coach-form">
+            <textarea id="aiCoachInput" rows="2"
+                      placeholder="问四级相关问题，如：帮我翻译「随着科技的发展…」（Enter 发送，Shift+Enter 换行）"></textarea>
+            <button type="submit" id="aiCoachSend">发送</button>
+        </form>
+    </div>
+</div>
+<div id="aiToast" class="ai-toast"></div>
+
+<script src="{{ url_for('static', filename='ai_panel.js') }}"></script>

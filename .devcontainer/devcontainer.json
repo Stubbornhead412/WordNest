@@ -1,0 +1,41 @@
+{
+  "name": "WordNest (Flask + SQLite)",
+  // 复用根目录 Dockerfile；workspace 会被挂载到 /app，
+  // 所以改代码后按 F5 立即生效，数据（instance/）和宿主机共用。
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/app",
+  "remoteUser": "root",
+  "forwardPorts": [5000],
+  "portsAttributes": {
+    "5000": {
+      "label": "WordNest",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt debugpy && mkdir -p instance chat_data",
+  "remoteEnv": {
+    "FLASK_APP": "app.py",
+    "FLASK_ENV": "development",
+    "DEEPSEEK_API_KEY": "${localEnv:DEEPSEEK_API_KEY}",
+    "DEEPSEEK_BASE_URL": "${localEnv:DEEPSEEK_BASE_URL:https://api.deepseek.com}",
+    "PYTHONUNBUFFERED": "1"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.debugpy",
+        "ms-python.vscode-pylance",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.analysis.extraPaths": ["/app"],
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "docker: 启动 WordNest (build + up)",
+      "detail": "构建镜像并后台启动容器，然后访问 http://localhost:5000",
+      "type": "shell",
+      "command": "docker compose up -d --build",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: 重建并启动 (清除旧镜像)",
+      "detail": "改了代码或 requirements 后使用",
+      "type": "shell",
+      "command": "docker compose build --no-cache && docker compose up -d",
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: 查看日志 (Ctrl+C 退出)",
+      "type": "shell",
+      "command": "docker compose logs -f --tail 100",
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: 状态 / 端口",
+      "type": "shell",
+      "command": "docker compose ps",
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: 重启",
+      "type": "shell",
+      "command": "docker compose restart",
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: 停止 (保留数据)",
+      "type": "shell",
+      "command": "docker compose down",
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: 进入容器 shell",
+      "type": "shell",
+      "command": "docker compose exec wordnest bash",
+      "problemMatcher": []
+    },
+    {
+      "label": "打开 http://localhost:5000",
+      "type": "shell",
+      "command": "Start-Process http://localhost:5000",
+      "windows": { "command": "Start-Process http://localhost:5000" },
+      "linux": { "command": "xdg-open http://localhost:5000" },
+      "osx": { "command": "open http://localhost:5000" },
+      "problemMatcher": []
+    }
+  ]
+}

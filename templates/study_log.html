@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学习记录 · WordNest</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .sl-wrap {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 32px 20px 72px;
+        }
+        .sl-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 22px;
+        }
+        .sl-head h1 {
+            font-size: 26px;
+            margin: 0 0 6px;
+            color: var(--text-color, #2b3040);
+        }
+        .sl-sub {
+            margin: 0;
+            font-size: 13px;
+            color: var(--text-secondary, #8a93a6);
+        }
+        .sl-nav {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .sl-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            font-size: 13px;
+            color: var(--text-color, #2b3040);
+            background: var(--card-bg, #fff);
+            border: 1px solid var(--border-color, #e9ecef);
+            border-radius: 10px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all .2s ease;
+        }
+        .sl-btn:hover {
+            border-color: var(--primary-color, #4a6cf7);
+            color: var(--primary-color, #4a6cf7);
+            transform: translateY(-1px);
+        }
+        .sl-btn-primary {
+            background: var(--primary-color, #4a6cf7);
+            border-color: var(--primary-color, #4a6cf7);
+            color: #fff;
+        }
+        .sl-btn-primary:hover {
+            background: var(--primary-hover, #3951c6);
+            color: #fff;
+        }
+        .sl-btn-sm { padding: 5px 10px; font-size: 12px; }
+
+        .sl-reviewbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            margin-bottom: 18px;
+            font-size: 13px;
+            color: #1f6f43;
+            background: #e8f8ef;
+            border: 1px solid #b6e7cd;
+            border-radius: 12px;
+        }
+
+        .sl-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+        .sl-stat {
+            padding: 16px 18px;
+            background: var(--card-bg, #fff);
+            border: 1px solid var(--border-color, #e9ecef);
+            border-radius: 14px;
+            box-shadow: var(--card-shadow, 0 4px 6px rgba(0,0,0,.06));
+        }
+        .sl-stat-label {
+            font-size: 12px;
+            color: var(--text-secondary, #8a93a6);
+            margin-bottom: 8px;
+        }
+        .sl-stat-value {
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--text-color, #2b3040);
+            line-height: 1;
+        }
+        .sl-stat-value small {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary, #8a93a6);
+            margin-left: 4px;
+        }
+
+        .sl-card {
+            background: var(--card-bg, #fff);
+            border: 1px solid var(--border-color, #e9ecef);
+            border-radius: 16px;
+            box-shadow: var(--card-shadow, 0 4px 6px rgba(0,0,0,.06));
+            padding: 20px 20px 24px;
+            margin-bottom: 18px;
+        }
+        .sl-card-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .sl-card-head h2 {
+            font-size: 16px;
+            margin: 0;
+            color: var(--text-color, #2b3040);
+        }
+        .sl-hint { font-size: 12px; color: var(--text-secondary, #8a93a6); }
+
+        .sl-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            height: 190px;
+            padding-top: 18px;
+        }
+        .sl-bar-wrap {
+            flex: 1 1 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            height: 100%;
+            cursor: pointer;
+            min-width: 0;
+        }
+        .sl-bar {
+            width: 100%;
+            max-width: 26px;
+            min-height: 3px;
+            border-radius: 6px 6px 3px 3px;
+            background: linear-gradient(180deg, #7c95ff 0%, var(--primary-color, #4a6cf7) 100%);
+            position: relative;
+            transition: transform .18s ease, filter .18s ease;
+        }
+        .sl-bar-wrap:hover .sl-bar {
+            transform: scaleY(1.03);
+            filter: brightness(1.08);
+        }
+        .sl-bar-empty { background: var(--border-color, #e9ecef); }
+        .sl-bar-today {
+            background: linear-gradient(180deg, #ffd166 0%, #f5a524 100%);
+        }
+        .sl-bar-val {
+            position: absolute;
+            top: -17px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: var(--text-secondary, #8a93a6);
+            white-space: nowrap;
+        }
+        .sl-bar-label {
+            margin-top: 6px;
+            font-size: 10px;
+            color: var(--text-secondary, #8a93a6);
+            white-space: nowrap;
+        }
+
+        .sl-day {
+            border: 1px solid var(--border-color, #e9ecef);
+            border-radius: 12px;
+            margin-bottom: 10px;
+            overflow: hidden;
+            transition: border-color .2s ease, box-shadow .2s ease;
+        }
+        .sl-day[open] { border-color: rgba(74, 108, 247, .45); }
+        .sl-flash { box-shadow: 0 0 0 3px rgba(74, 108, 247, .25); }
+        .sl-day summary {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 13px 16px;
+            cursor: pointer;
+            list-style: none;
+            user-select: none;
+        }
+        .sl-day summary::-webkit-details-marker { display: none; }
+        .sl-day summary:hover { background: var(--table-row-hover, #f8f9fa); }
+        .sl-date { font-size: 14px; font-weight: 600; color: var(--text-color, #2b3040); }
+        .sl-weekday { font-size: 12px; color: var(--text-secondary, #8a93a6); }
+        .sl-count {
+            font-size: 12px;
+            color: var(--primary-color, #4a6cf7);
+            background: rgba(74, 108, 247, .1);
+            padding: 3px 9px;
+            border-radius: 999px;
+        }
+        .sl-chevron {
+            margin-left: auto;
+            font-size: 12px;
+            color: var(--text-secondary, #8a93a6);
+            transition: transform .2s ease;
+        }
+        .sl-day[open] .sl-chevron { transform: rotate(180deg); }
+
+        .sl-words {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+            gap: 8px;
+            padding: 0 16px 12px;
+        }
+        .sl-word {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            padding: 8px 10px;
+            font-size: 12.5px;
+            background: var(--table-row-hover, #f8f9fa);
+            border-radius: 9px;
+            overflow: hidden;
+        }
+        .sl-w { font-weight: 600; color: var(--primary-color, #4a6cf7); }
+        .sl-star { color: #f5a524; font-size: 11px; }
+        .sl-pos { color: var(--text-secondary, #8a93a6); font-size: 11px; }
+        .sl-mean {
+            color: var(--text-color, #2b3040);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .sl-times { margin-left: auto; color: #b0b8c8; font-size: 11px; }
+        .sl-day-actions { padding: 0 16px 14px; }
+        .sl-empty {
+            margin: 8px 0 4px;
+            font-size: 13px;
+            color: var(--text-secondary, #8a93a6);
+        }
+
+        .dark-mode .sl-stat,
+        .dark-mode .sl-card,
+        .dark-mode .sl-btn { background: #1f2430; border-color: #2c3444; color: #e8ecf4; }
+        .dark-mode .sl-head h1,
+        .dark-mode .sl-card-head h2,
+        .dark-mode .sl-date,
+        .dark-mode .sl-stat-value { color: #e8ecf4; }
+        .dark-mode .sl-word { background: #232936; }
+        .dark-mode .sl-mean { color: #dfe5f0; }
+        .dark-mode .sl-day summary:hover { background: #232936; }
+        .dark-mode .sl-bar-empty { background: #2c3444; }
+        .dark-mode .sl-reviewbar { background: #16301f; border-color: #245c3a; color: #8fe0b3; }
+
+        @media (max-width: 720px) {
+            .sl-stats { grid-template-columns: repeat(2, 1fr); }
+            .sl-chart { height: 150px; }
+            .sl-bar-label { font-size: 9px; }
+        }
+    </style>
+</head>
+<body>
+<main class="sl-wrap">
+    <header class="sl-head">
+        <div>
+            <h1>学习记录</h1>
+            <p class="sl-sub">按天回看学过的单词，点开某一天可以直接进入复习</p>
+        </div>
+        <nav class="sl-nav">
+            <a href="/" class="sl-btn">← 返回自测</a>
+            <a href="/word_list" class="sl-btn">单词列表</a>
+            <a href="/notes" class="sl-btn">我的笔记</a>
+            <a href="/knowledge_graph" class="sl-btn">知识图谱</a>
+        </nav>
+    </header>
+
+    {% if review_date %}
+    <div class="sl-reviewbar">
+        <span>正在复习 {{ review_date }} 的 {{ review_count }} 个单词</span>
+        <button class="sl-btn sl-btn-sm" onclick="endReview()">退出复习</button>
+    </div>
+    {% endif %}
+
+    <section class="sl-stats">
+        <div class="sl-stat">
+            <div class="sl-stat-label">今天</div>
+            <div class="sl-stat-value">{{ summary.today }}<small>词</small></div>
+        </div>
+        <div class="sl-stat">
+            <div class="sl-stat-label">近 7 天</div>
+            <div class="sl-stat-value">{{ summary.week }}<small>词</small></div>
+        </div>
+        <div class="sl-stat">
+            <div class="sl-stat-label">累计学习（去重）</div>
+            <div class="sl-stat-value">{{ summary.total_words }}<small>词</small></div>
+        </div>
+        <div class="sl-stat">
+            <div class="sl-stat-label">学习天数</div>
+            <div class="sl-stat-value">{{ summary.total_days }}<small>天</small></div>
+        </div>
+    </section>
+
+    <section class="sl-card">
+        <div class="sl-card-head">
+            <h2>近 30 天学习量</h2>
+            <span class="sl-hint">点击柱子跳到那一天 · 黄色为今天</span>
+        </div>
+        <div id="chart" class="sl-chart"></div>
+    </section>
+
+    <section class="sl-card">
+        <div class="sl-card-head">
+            <h2>按天目录</h2>
+            <span class="sl-hint">{% if days %}最近 {{ days|length }} 天有记录{% else %}暂无记录{% endif %}</span>
+        </div>
+
+        {% if days %}
+            {% for d in days %}
+            <details class="sl-day" id="day-{{ d.date }}">
+                <summary>
+                    <span class="sl-date">{{ d.label }}</span>
+                    <span class="sl-weekday">{{ d.weekday }}</span>
+                    <span class="sl-count">{{ d.count }} 词</span>
+                    <span class="sl-chevron">▾</span>
+                </summary>
+                <div class="sl-words">
+                    {% for w in d.words %}
+                    <div class="sl-word">
+                        <span class="sl-w">{{ w.word }}</span>
+                        {% if w.marked %}<span class="sl-star" title="已星标">★</span>{% endif %}
+                        {% if w.pos %}<span class="sl-pos">{{ w.pos }}</span>{% endif %}
+                        <span class="sl-mean" title="{{ w.meaning }}">{{ w.meaning }}</span>
+                        {% if w.times and w.times > 1 %}<span class="sl-times">×{{ w.times }}</span>{% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="sl-day-actions">
+                    <button class="sl-btn sl-btn-primary" onclick="startReview('{{ d.date }}', this, event)">
+                        复习这 {{ d.count }} 个词
+                    </button>
+                </div>
+            </details>
+            {% endfor %}
+        {% else %}
+            <p class="sl-empty">还没有学习记录。去自测页点几次「查看意思」，这里就会自动记下当天学过的单词 ✨</p>
+        {% endif %}
+    </section>
+</main>
+
+<script>
+    const SERIES = {{ series|tojson }};
+    const MAX_COUNT = Math.max.apply(null, SERIES.map(p => p.count).concat([1]));
+
+    function renderChart() {        const box = document.getElementById('chart');
+        if (!box) return;
+        const html = SERIES.map(function (p, i) {
+            const h = p.count ? Math.max(8, Math.round(p.count / MAX_COUNT * 100)) : 2;
+            const label = (i % 5 === 0 || p.is_today) ? p.label : '';
+            return '<div class="sl-bar-wrap" data-date="' + p.date + '" title="' + p.date + ' ' + p.weekday + '：' + p.count + ' 词">' +
+                '<div class="sl-bar ' + (p.count ? '' : 'sl-bar-empty') + (p.is_today ? ' sl-bar-today' : '') + '" style="height:' + h + '%">' +
+                (p.count ? '<span class="sl-bar-val">' + p.count + '</span>' : '') +
+                '</div>' +
+                '<div class="sl-bar-label">' + label + '</div>' +
+                '</div>';
+        }).join('');
+        box.innerHTML = html;
+
+        box.querySelectorAll('.sl-bar-wrap').forEach(function (el) {
+            el.addEventListener('click', function () {
+                const target = document.getElementById('day-' + el.dataset.date);
+                if (!target) {
+                    alert('这一天没有学习记录');
+                    return;
+                }
+                target.open = true;
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                target.classList.add('sl-flash');
+                setTimeout(function () { target.classList.remove('sl-flash'); }, 1200);
+            });
+        });
+    }
+
+    async function startReview(date, btn, ev) {
+        if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+        const old = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '准备中...';
+        try {
+            const res = await fetch('/study_log/review', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date: date })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || '启动失败');
+            window.location.href = '/';
+        } catch (e) {
+            alert('进入复习失败：' + e.message);
+            btn.disabled = false;
+            btn.textContent = old;
+        }
+    }
+
+    async function endReview() {
+        try {
+            await fetch('/study_log/review/end', { method: 'POST' });
+        } catch (e) { /* 忽略 */ }
+        window.location.reload();
+    }
+
+    // 支持 #day-2026-10-20 深链：直接展开并定位到某一天
+    function openFromHash() {
+        var h = window.location.hash;
+        if (!h || h.indexOf('#day-') !== 0) return;
+        var el = document.getElementById(h.slice(1));
+        if (!el) return;
+        el.open = true;
+        el.scrollIntoView({ block: 'center' });
+        el.classList.add('sl-flash');
+        setTimeout(function () { el.classList.remove('sl-flash'); }, 1200);
+    }
+
+    renderChart();
+    openFromHash();
+    window.addEventListener('hashchange', openFromHash);
+</script>
+
+{% include '_ai_panel.html' %}
+</body>
+</html>

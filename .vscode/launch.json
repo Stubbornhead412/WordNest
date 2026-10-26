@@ -1,0 +1,38 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // 推荐：在 Dev Container 里按 F5 即可带断点调试；
+      // 在本机直接调试也行（需本机已装 requirements.txt 里的依赖）。
+      "name": "WordNest: Flask 调试 (端口 5000)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "flask",
+      "args": ["run", "--host", "0.0.0.0", "--port", "5000", "--no-reload"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "FLASK_APP": "app.py",
+        "FLASK_ENV": "development",
+        "DEEPSEEK_BASE_URL": "https://api.deepseek.com",
+        "PYTHONUNBUFFERED": "1"
+      },
+      "jinja": true,
+      "justMyCode": true
+    },
+    {
+      "name": "WordNest: 直接运行 app.py (debug)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/app.py",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DEBUG": "True",
+        "FLASK_ENV": "development"
+      },
+      "jinja": true,
+      "justMyCode": true
+    }
+  ]
+}
