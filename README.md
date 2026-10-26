@@ -15,7 +15,7 @@
 > - 🎲 按轮抽词算法：一轮内不重复、词库随时增删都不错位、跨设备/重启接续
 > - 📱 手机 / 远程访问（局域网、Tailscale、Cloudflare 隧道）+ 可选访问密码
 >
-> **完整运行说明、常见问题与改动清单 👉 [README.docker.md](README.docker.md)**
+> **完整运行说明、常见问题与改动清单 👉 [docs/DOCKER.md](docs/DOCKER.md)**
 >
 > 许可证沿用上游 **MIT**，见 [LICENSE](LICENSE)；二次开发部分的版权与原项目一致（MIT）。
 > 如果你是原作者并希望移除本仓库，请联系我处理。
@@ -33,7 +33,7 @@
 [![Flask](https://img.shields.io/badge/Flask-2.3.3-green?style=for-the-badge&logo=flask)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
-[English](README.en.md) | [简体中文](README.md) | [Français](README.fr.md)
+[English](README.en.md) | [简体中文](README.md)
 
 </div>
 

@@ -1,5 +1,7 @@
 # WordNest × Docker Desktop × VSCode 部署说明
 
+> 本文档位于 docs/DOCKER.md，项目根目录见 [README.md](../README.md)。
+
 本目录是 [wink-wink-wink555/WordNest](https://github.com/wink-wink-wink555/WordNest) 的二次开发版，
 补好了在 **Docker Desktop + VSCode** 下运行所需的全部配置。
 
@@ -263,7 +265,7 @@ Docker Desktop 把 Windows 目录以 **9p/drvfs** 挂载进容器，这个文件
 CSV 需要的列（顺序无所谓，按表头识别；最少要有「单词」和「释义」）：
 `序号,单词/短语,音标,词性,中文释义,类型,首字母`
 
-导入脚本：[import_vocabulary.py](import_vocabulary.py)（已改成通用 CLI，路径不再写死）
+导入脚本：[import_vocabulary.py](../import_vocabulary.py)（已改成通用 CLI，路径不再写死）
 
 ```powershell
 # 1) 先停容器，避免 SQLite 写入竞争
