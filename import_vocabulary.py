@@ -28,6 +28,7 @@ CSV 格式：带表头的 UTF-8 文件，建议列名如下（顺序无所谓，
 """
 import argparse
 import csv
+import io
 import os
 import shutil
 import sqlite3
@@ -83,8 +84,22 @@ def detect_columns(header):
 def read_csv(path):
     if not os.path.exists(path):
         sys.exit(f'找不到 CSV 文件: {path}\n提示：把文件放到项目根目录，或用 --csv 指定完整路径。')
-    with open(path, 'r', encoding='utf-8-sig', newline='') as f:
-        rows = list(csv.reader(f))
+
+    # Excel 在中文 Windows 上默认导出 GBK 编码，所以要逐个编码尝试
+    text, used = None, None
+    for encoding in ('utf-8-sig', 'utf-8', 'gb18030', 'gbk'):
+        try:
+            with open(path, 'r', encoding=encoding, newline='') as f:
+                text = f.read()
+            used = encoding
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        sys.exit('无法识别 CSV 的编码（已尝试 UTF-8 / GBK）。\n'
+                 '请在 Excel 里用「另存为 → CSV UTF-8（逗号分隔）」重新导出后重试。')
+
+    rows = list(csv.reader(io.StringIO(text)))
     if not rows:
         sys.exit('CSV 是空的')
     header, data = rows[0], [r for r in rows[1:] if any(c.strip() for c in r)]
@@ -92,7 +107,7 @@ def read_csv(path):
     if 'word' not in cols or 'meaning' not in cols:
         sys.exit(f'CSV 表头里找不到「单词」或「释义」列。\n实际表头: {header}\n'
                  f'建议表头: 序号,单词/短语,音标,词性,中文释义,类型,首字母')
-    print(f'CSV: {path}')
+    print(f'CSV: {path}（编码 {used}）')
     print(f'表头: {header}')
     print(f'识别到列: {cols}')
     print(f'数据行数: {len(data)}')

@@ -39,7 +39,7 @@ htmlcov/
 .env
 .env.*
 !.env.example
-settings.json
+# settings.json 只存界面偏好（不含个人数据），且 compose 需要挂载它，所以提交默认值
 instance/
 chat_data/
 study_data/

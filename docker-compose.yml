@@ -41,7 +41,8 @@ services:
       - ./chat_data:/app/chat_data
       # 每日学习记录（按天统计，独立于词库）
       - ./study_data:/app/study_data
-      # 界面偏好设置（需要在宿主机上先存在该文件，否则 Docker 会创建成目录）
+      # 界面偏好设置。注意：宿主机上必须先有同名【文件】，否则 Docker 会创建成目录。
+      # 仓库已自带默认 settings.json；若该文件被误删后启动过，需先删除目录再恢复文件。
       - ./settings.json:/app/settings.json
     extra_hosts:
       # 方便以后从容器里访问宿主机上的 Ollama / 本地模型服务
