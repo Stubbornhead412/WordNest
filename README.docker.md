@@ -573,3 +573,75 @@ WORDNEST_PASSWORD=你的密码
 - 单词和操作图标改成上下排列，长单词（`intelligent`、`discrimination`）不会压到按钮
 - 建议手机浏览器「添加到主屏幕」，用起来接近 App
 
+---
+
+## 十四、发布到 GitHub（打包 / 推送）
+
+这个目录已经初始化成 git 仓库并做了一次提交：
+
+```powershell
+git log --oneline -1     # 2c28778 初始提交：…
+git status               # 干净
+```
+
+**提交内容已做过滤**（`.gitignore` 兜底 + 实测确认）：
+
+| 不会进仓库 | 原因 |
+| --- | --- |
+| `.env` | 里面有你的 DeepSeek API Key |
+| `instance/`、`*.db` | 你的 400 词词库（个人数据） |
+| `study_data/` | 学习记录 + 笔记 + 抽词轮次（个人数据） |
+| `chat_data/` | AI 对话记录 |
+| `backup/`、`*.bak` | 词库备份 |
+| `screenshot_*.png` | 我调试时的截图 |
+
+当前快照：**80 个文件 / 约 5 MB**（其中 `screenshots/` 上游图片 3.6 MB）。
+
+### 方式 A：网页上传（最省事，不需要 git 网络）
+
+我已生成 `WordNest-github.zip`（在上一级目录，3.77 MB，只含仓库内容）：
+
+1. 在 GitHub 新建一个空仓库（**不要**勾选 Add a README / .gitignore / license）
+2. 打开仓库 → `Add file` → `Upload files`
+3. 把 **解压后**里面的文件（不是 zip 本身）拖进去 → Commit
+
+> 也可以在网页上直接上传那个 zip：`Add file → Upload files` 支持拖 zip 后自动解压成目录。
+
+### 方式 B：命令行推送（需要能连 GitHub）
+
+本机当前**直连 GitHub 的 git 协议被重置**（`Recv failure: Connection was reset`），
+所以推送前需要开代理（Clash / v2ray 等），然后：
+
+```powershell
+cd C:\Users\Asus\Documents\deepseek-harness\default-workspace\WordNest
+
+# 1) 给 git 配代理（Clash Verge 默认混合端口 7897；Clash for Windows 常见 7890）
+git config --global http.proxy  http://127.0.0.1:7897
+git config --global https.proxy http://127.0.0.1:7897
+
+# 2) 关联你的仓库（把 <你的用户名> 换成实际用户名）
+git remote add origin https://github.com/<你的用户名>/WordNest.git
+
+# 3) 推送
+git push -u origin main
+```
+
+推送时用 **Personal Access Token** 当密码（GitHub 已不支持账号密码）：
+`Settings → Developer settings → Personal access tokens → Fine-grained tokens`，勾 `Contents: Read and write`。
+
+推完想取消代理：`git config --global --unset http.proxy` 和 `--unset https.proxy`。
+
+### 方式 C：Gitee / 其他国内平台（不需要代理）
+
+如果只是想要一个能访问的远程仓库，Gitee（码云）直连即可：新建仓库 → 拿仓库地址 →
+`git remote add origin https://gitee.com/<用户名>/wordnest.git && git push -u origin main`。
+之后想要 GitHub 镜像，可以再用网页方式导入。
+
+### 发布前的两个提醒
+
+1. **署名**：这是基于 [wink-wink-wink555/WordNest](https://github.com/wink-wink-wink555/WordNest) 的二次开发，
+   `LICENSE` 保留原作者版权（MIT 允许修改与再发布，但必须保留版权声明）。README 顶部已加说明，别删。
+2. **别把自己的数据放进去**：词库 CSV、`.env`、数据库文件都属于个人内容。
+   想让别人也能导入你的词表，可以只附一个**脱敏的示例 CSV**（比如前 20 个词）。
+
+
