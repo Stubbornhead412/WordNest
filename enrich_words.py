@@ -15,6 +15,7 @@
 """
 import argparse
 import json
+import os
 import re
 import sqlite3
 import sys
@@ -24,7 +25,8 @@ import urllib.parse
 import urllib.request
 
 BASE = "http://127.0.0.1:5000"
-DB = r"C:\Users\Asus\Documents\deepseek-harness\default-workspace\WordNest\instance\words.db"
+ROOT = os.path.dirname(os.path.abspath(__file__))
+DB = os.path.join(ROOT, "instance", "words.db")
 
 PHONETIC_RE = re.compile(r"音标\s*/([^/]+)/")
 
@@ -80,12 +82,22 @@ def merge_note(ai_note, old_note):
 
 
 def main():
-    ap = argparse.ArgumentParser()
+    global BASE, DB
+
+    ap = argparse.ArgumentParser(description="给词库里的单词批量补例句 + 记忆法")
     ap.add_argument("--limit", type=int, default=100, help="本次处理多少个词（0=全部）")
     ap.add_argument("--sleep", type=float, default=0.3, help="每次调用之间的间隔秒数")
     ap.add_argument("--dry-run", action="store_true", help="只生成不写库")
     ap.add_argument("--all", action="store_true", help="包括已有例句的词（会覆盖）")
+    ap.add_argument("--list", default="words", help="要处理的词表名（默认 words）")
+    ap.add_argument("--base-url", default=BASE, help="WordNest 地址（默认 http://127.0.0.1:5000）")
+    ap.add_argument("--db", default=None, help="词表数据库路径（默认 instance/<list>.db）")
     args = ap.parse_args()
+
+    BASE = args.base_url.rstrip("/")
+    DB = args.db or os.path.join(ROOT, "instance", f"{args.list}.db")
+    if not os.path.exists(DB):
+        sys.exit(f"找不到词表数据库: {DB}\n提示：先在网页上导入词表（python import_vocabulary.py --csv ...）")
 
     st, _ = api("/api/lists")
     if st != 200:

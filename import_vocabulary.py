@@ -1,28 +1,42 @@
 # -*- coding: utf-8 -*-
 """
-把 vocabulary.csv 导入 WordNest 的默认词库（instance/words.db）
+把 CSV 词表导入 WordNest
 
-处理策略：
-1. 备份现有 words.db 到 backup/ 目录（保证可回滚）
-2. 把原有的 21 个示例词迁移到 instance/demo.db（变成独立的 "demo" 词表）
-3. 清空 words.db，导入 CSV 中的单词
-   - 单词/短语      -> word.word
-   - 词性           -> definition.part_of_speech
-   - 中文释义       -> definition.meaning
-   - 音标           -> definition.note（前缀 "音标 /.../"；项目没有音标字段）
-   - 例句           -> 留空，稍后可用 AI 一键填充
+用法（在项目根目录执行，需要本机有 Python 3.8+）：
+
+    # 1) 最简单：CSV 放项目根目录
+    python import_vocabulary.py --csv vocabulary.csv
+
+    # 2) 导入成一个新的词表（不动现有数据，推荐）
+    python import_vocabulary.py --csv my_words.csv --list cet4
+
+    # 3) 覆盖已有词表（会先自动备份到 backup/）
+    python import_vocabulary.py --csv my_words.csv --list words --replace
+
+CSV 格式：带表头的 UTF-8 文件，建议列名如下（顺序无所谓，按表头识别）：
+
+    序号,单词/短语,音标,词性,中文释义,类型,首字母
+
+    1,abuse,əˈbjuːs,n./v.,滥用；虐待；辱骂,单词,a
+
+最少只需要「单词」和「释义」两列；音标/词性/类型可缺省。
+
+⚠️ 导入前建议先停容器，避免 SQLite 写入竞争：
+    docker compose stop
+    python import_vocabulary.py --csv vocabulary.csv
+    docker compose start
 """
+import argparse
+import csv
 import os
 import shutil
 import sqlite3
-import csv
+import sys
 from datetime import datetime
 
-ROOT = r"C:\Users\Asus\Documents\deepseek-harness\default-workspace\WordNest"
-INST = os.path.join(ROOT, "instance")
-SRC = r"C:\Users\Asus\Downloads\vocabulary.csv"
-WORDS_DB = os.path.join(INST, "words.db")
-DEMO_DB = os.path.join(INST, "demo.db")
+ROOT = os.path.dirname(os.path.abspath(__file__))
+INSTANCE = os.path.join(ROOT, 'instance')
+BACKUP = os.path.join(ROOT, 'backup')
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS word (
@@ -44,109 +58,137 @@ CREATE TABLE IF NOT EXISTS definition (
 );
 """
 
+# 表头别名 → 内部字段
+HEADER_ALIASES = {
+    'word': ['单词/短语', '单词', 'word', '英文', '词汇'],
+    'phonetic': ['音标', 'phonetic', '发音'],
+    'pos': ['词性', 'part_of_speech', 'pos'],
+    'meaning': ['中文释义', '释义', 'meaning', '中文', '翻译'],
+    'kind': ['类型', 'kind', 'type'],
+}
 
-def read_csv():
-    with open(SRC, "r", encoding="utf-8-sig", newline="") as f:
+
+def detect_columns(header):
+    """根据表头文字找到各列下标"""
+    idx = {}
+    for col, aliases in HEADER_ALIASES.items():
+        for i, name in enumerate(header):
+            clean = (name or '').strip().lower()
+            if clean in [a.lower() for a in aliases]:
+                idx[col] = i
+                break
+    return idx
+
+
+def read_csv(path):
+    if not os.path.exists(path):
+        sys.exit(f'找不到 CSV 文件: {path}\n提示：把文件放到项目根目录，或用 --csv 指定完整路径。')
+    with open(path, 'r', encoding='utf-8-sig', newline='') as f:
         rows = list(csv.reader(f))
-    header, data = rows[0], rows[1:]
-    print("表头:", header)
-    print("数据行数:", len(data))
-    return header, data
+    if not rows:
+        sys.exit('CSV 是空的')
+    header, data = rows[0], [r for r in rows[1:] if any(c.strip() for c in r)]
+    cols = detect_columns(header)
+    if 'word' not in cols or 'meaning' not in cols:
+        sys.exit(f'CSV 表头里找不到「单词」或「释义」列。\n实际表头: {header}\n'
+                 f'建议表头: 序号,单词/短语,音标,词性,中文释义,类型,首字母')
+    print(f'CSV: {path}')
+    print(f'表头: {header}')
+    print(f'识别到列: {cols}')
+    print(f'数据行数: {len(data)}')
+    return cols, data
 
 
 def main():
-    header, data = read_csv()
+    ap = argparse.ArgumentParser(description='把 CSV 词表导入 WordNest')
+    ap.add_argument('--csv', default=os.path.join(ROOT, 'vocabulary.csv'),
+                    help='CSV 文件路径（默认：项目根目录下的 vocabulary.csv）')
+    ap.add_argument('--list', default='words', help='导入到哪个词表（默认 words，会出现在网页右上角列表里）')
+    ap.add_argument('--replace', action='store_true',
+                    help='目标词表已有单词时：先备份、清空，再导入')
+    args = ap.parse_args()
 
-    # 1. 备份
-    backup_dir = os.path.join(ROOT, "backup")
-    os.makedirs(backup_dir, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    if os.path.exists(WORDS_DB):
-        bak = os.path.join(backup_dir, f"words.db.{stamp}.bak")
-        shutil.copy2(WORDS_DB, bak)
-        print("已备份 ->", bak)
+    cols, data = read_csv(args.csv)
 
-    src = sqlite3.connect(WORDS_DB)
-    old = src.execute(
-        "select w.id, w.word, w.marked, d.part_of_speech, d.meaning, d.example, d.note "
-        "from word w left join definition d on d.word_id = w.id order by w.id"
-    ).fetchall()
-    src.close()
-    print("原有单词数:", len({r[1] for r in old}))
+    os.makedirs(INSTANCE, exist_ok=True)
+    target_db = os.path.join(INSTANCE, f'{args.list}.db')
 
-    # 2. 迁移示例词到 demo.db
-    if os.path.exists(DEMO_DB):
-        os.remove(DEMO_DB)
-    demo = sqlite3.connect(DEMO_DB)
-    demo.executescript(SCHEMA)
-    wid = {}
-    for oid, w, marked, pos, meaning, example, note in old:
-        if w not in wid:
-            cur = demo.execute("insert into word (word, marked) values (?, ?)", (w, marked or 0))
-            wid[w] = cur.lastrowid
-        if pos:
-            demo.execute(
-                "insert into definition (word_id, part_of_speech, meaning, example, note) values (?,?,?,?,?)",
-                (wid[w], pos, meaning, example, note),
-            )
-    demo.commit()
-    n_demo = demo.execute("select count(*) from word").fetchone()[0]
-    demo.close()
-    print("已迁移到 demo.db 的示例词:", n_demo)
+    # 已有数据检查
+    existing = 0
+    if os.path.exists(target_db):
+        con = sqlite3.connect(target_db)
+        con.executescript(SCHEMA)
+        existing = con.execute('select count(*) from word').fetchone()[0]
+        con.close()
+    if existing and not args.replace:
+        sys.exit(f'词表 [{args.list}] 里已经有 {existing} 个单词，为安全起见不覆盖。\n'
+                 f'想覆盖请加 --replace（会自动备份），或换一个 --list 名字，例如 --list cet4')
 
-    # 3. 清空 words.db
-    con = sqlite3.connect(WORDS_DB)
+    # 备份
+    if os.path.exists(target_db):
+        os.makedirs(BACKUP, exist_ok=True)
+        bak = os.path.join(BACKUP, f'{args.list}.db.{datetime.now():%Y%m%d-%H%M%S}.bak')
+        shutil.copy2(target_db, bak)
+        print('已备份 ->', bak)
+
+    con = sqlite3.connect(target_db)
     con.executescript(SCHEMA)
-    con.execute("delete from definition")
-    con.execute("delete from word")
+    con.execute('delete from definition')
+    con.execute('delete from word')
     con.commit()
 
-    # 4. 导入 CSV
-    seen, skipped_dup, no_phonetic, phrases = set(), [], 0, []
-    imported = 0
+    seen, dup, no_phonetic, phrases, imported = set(), [], 0, [], 0
     for row in data:
-        if len(row) < 5:
-            continue
-        idx, word, phonetic, pos, meaning = row[0], row[1].strip(), row[2].strip(), row[3].strip(), row[4].strip()
-        kind = row[5].strip() if len(row) > 5 else ""
+        def cell(key):
+            i = cols.get(key)
+            if i is None or i >= len(row):
+                return ''
+            return (row[i] or '').strip()
+
+        word = cell('word')
         if not word:
             continue
         key = word.lower()
         if key in seen:
-            skipped_dup.append(word)
+            dup.append(word)
             continue
         seen.add(key)
 
-        phonetic = phonetic.strip("[]/ ")
-        note = f"音标 /{phonetic}/" if phonetic else ""
+        phonetic = cell('phonetic').strip('[]/ ')
+        note = f'音标 /{phonetic}/' if phonetic else ''
         if not phonetic:
             no_phonetic += 1
-        if kind == "短语" or " " in word:
+        if cell('kind') == '短语' or ' ' in word:
             phrases.append(word)
 
-        cur = con.execute("insert into word (word, marked) values (?, 0)", (word,))
+        cur = con.execute('insert into word (word, marked) values (?, 0)', (word,))
         con.execute(
-            "insert into definition (word_id, part_of_speech, meaning, example, note) values (?,?,?,?,?)",
-            (cur.lastrowid, pos or "-", meaning, "", note),
+            'insert into definition (word_id, part_of_speech, meaning, example, note) '
+            'values (?,?,?,?,?)',
+            (cur.lastrowid, cell('pos') or '-', cell('meaning'), '', note),
         )
         imported += 1
 
     con.commit()
-    total = con.execute("select count(*) from word").fetchone()[0]
-    defs = con.execute("select count(*) from definition").fetchone()[0]
+    total = con.execute('select count(*) from word').fetchone()[0]
     sample = con.execute(
-        "select w.word, d.part_of_speech, d.meaning, d.note from word w join definition d on d.word_id=w.id order by w.id limit 5"
-    ).fetchall()
+        'select w.word, d.part_of_speech, d.meaning, d.note from word w '
+        'join definition d on d.word_id = w.id order by w.id limit 5').fetchall()
     con.close()
 
-    print("\n=== 导入结果 ===")
-    print("导入单词:", imported, "| 库内总数:", total, "| 释义条数:", defs)
-    print("重复跳过:", skipped_dup if skipped_dup else "无")
-    print("无音标:", no_phonetic, "| 短语数:", len(phrases), phrases[:5])
-    print("样例:")
+    print('\n=== 导入结果 ===')
+    print(f'词表: {args.list} -> instance/{args.list}.db')
+    print(f'导入单词: {imported} | 库内总数: {total}')
+    print('重复跳过:', dup if dup else '无')
+    print(f'无音标: {no_phonetic} | 短语: {len(phrases)}')
+    print('样例:')
     for s in sample:
-        print("  ", s)
+        print('  ', s)
+    print('\n下一步：')
+    print('  1) docker compose start           # 如果刚才停了容器')
+    print('  2) 浏览器打开 http://localhost:5000 ，右上角可切换词表')
+    print('  3) 想让 AI 批量补例句/记忆法：python enrich_words.py --limit 10 --dry-run')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
