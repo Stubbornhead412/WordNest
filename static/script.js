@@ -53,9 +53,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     currentWordElement.classList.add('word-appear');
                     
                     // 添加提示信息
-                    let hintText = '没有标注的单词，请先标注一些单词';
+                    let hintText = '当前为「只看星标」模式，但还没有星标单词，请先标记一些';
                     if (data.word === 'No words available' || data.word === '暂无单词') {
-                        hintText = '当前列表为空，请先添加一些单词';
+                        hintText = '当前词表为空：可在右上角切换其他词表，或先添加单词';
                     }
                     
                     const noWordsHint = document.createElement('div');

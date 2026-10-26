@@ -286,23 +286,36 @@ class ListService:
     @staticmethod
     def get_default_list():
         """
-        获取默认列表名称（如果words.db存在，返回words，否则返回第一个列表或None）
-        
+        获取默认列表名称
+
+        优先返回有单词的列表，其次才是空的 words 列表：
+        新用户用脚本把词表导入成新列表后，第一次打开页面能直接看到自己的词，
+        而不是停在空的默认列表上误以为"没有导入成功"。
+
         Returns:
             默认列表名称
         """
         instance_folder = ListService.get_instance_folder()
-        
-        # 如果words.db存在，返回words作为默认列表
-        if os.path.exists(os.path.join(instance_folder, 'words.db')):
+        words_path = os.path.join(instance_folder, 'words.db')
+
+        # 1) words.db 存在且非空 -> 用它（最常见的情况）
+        if os.path.exists(words_path) and ListService.get_word_count_in_list('words') > 0:
             return 'words'
-        
-        # 否则返回第一个列表
+
         lists = ListService.get_all_lists()
+
+        # 2) 否则找一个有单词的列表
+        for item in lists:
+            if item.get('word_count', 0) > 0 and ListService.list_exists(item['name']):
+                return item['name']
+
+        # 3) 都为空：words.db 存在就用它，否则用第一个列表
+        if os.path.exists(words_path):
+            return 'words'
         if lists:
             return lists[0]['name']
-        
-        # 如果没有任何列表，创建一个默认的words列表
+
+        # 4) 一个列表都没有：创建默认的 words
         ListService.create_list('words')
         return 'words'
 

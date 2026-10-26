@@ -543,6 +543,32 @@ docker compose build --build-arg APT_MIRROR=https://deb.debian.org --build-arg P
 需要并存时，复制目录后改三处：`container_name`、宿主机端口（如 `"5001:5000"`），
 并用 `docker compose -p 项目名 up -d` 指定不同项目名。
 
+**9. 导入词表后打开页面还是空的**
+
+导入脚本支持 `--list` 指定词表，导入到新词表时不会自动切换当前词表。
+系统默认优先打开"有单词"的词表；如果仍然显示为空，点右上角的词表名切换即可。
+
+**10. 启动后抽不到词，日志里是 `IsADirectoryError: 'settings.json'`**
+
+`docker-compose.yml` 把 `settings.json` 挂载进容器，Docker 会在这个路径不存在时**创建成目录**。
+仓库自带该文件，正常解压不会遇到；如果手动删过它，需要先删掉目录再恢复文件：
+
+```bash
+rm -rf settings.json                      # Windows: rmdir /s /q settings.json
+git checkout -- settings.json             # 或者从仓库重新下载该文件
+docker compose restart
+```
+
+**11. 导入 CSV 时提示编码/表头错误**
+
+脚本会自动尝试 UTF-8 与 GBK（Excel 中文版默认导出 GBK）。若仍失败，在 Excel 里用
+「另存为 → CSV UTF-8（逗号分隔）」重新导出；表头至少需要「单词」和「释义」两列。
+
+**12. AI 提示"还没有配置 DeepSeek API Key"**
+
+这是预期提示，不是故障：在 `.env` 里填 `DEEPSEEK_API_KEY` 后 `docker compose up -d` 即可，
+其余功能不受影响。
+
 ---
 
 ## 十二、VSCode 里怎么调试
